@@ -1,0 +1,50 @@
+{
+  "type": "calibration_result",
+  "generated": "2026-07-16T10:00:33",
+  "meta": {
+    "operator": "D. Janiga",
+    "date": "2026-07-15",
+    "temperature_C": 21.5,
+    "instrument": "Corexport HMPoRZ, cat. no. 123"
+  },
+  "R": 19836.0,
+  "meter_offset": 0.0,
+  "cells": [
+    {
+      "cell": "A",
+      "R": 19836.0,
+      "Vr_cm3": 10.917798,
+      "V_LIN_cm3": 0.061065,
+      "V_D_cm3": 1.200047,
+      "uncertainty": {
+        "u_Vr_cm3": 0.029617,
+        "u_V_LIN_cm3": 0.038193,
+        "u_V_D_cm3": 0.003449,
+        "cov_Vr_V_LIN": -0.0011080451159800994,
+        "inputs_1sigma": {
+          "pressure": 2.0,
+          "disc_volume_cm3": 0.002
+        }
+      },
+      "inputs": {
+        "pressures": {
+          "P_DV": 17872.7,
+          "P1": 13967.4,
+          "P2": 11486.7
+        },
+        "disc_volumes_cm3": {
+          "V0": 0.0,
+          "V1": 3.398,
+          "V2": 6.768
+        }
+      },
+      "factory_comparison": {
+        "factory_Vr_cm3": 10.9175,
+        "factory_V_LIN_cm3": 0.061402,
+        "Vr_deviation_pct": 0.003,
+        "V_LIN_deviation_pct": -0.549
+      },
+      "warnings": []
+    }
+  ]
+}

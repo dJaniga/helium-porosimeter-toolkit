@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "operator": "D. Janiga",
+    "date": "2026-07-15",
+    "temperature_C": 21.5,
+    "instrument": "Corexport HMPoRZ, cat. no. 123"
+  },
+  "reference_pressure": {
+    "R": 19836.0,
+    "_comment": "Daily meter reading with the reference cell charged (R = 19836 for S/N A-20833). Alternatively give transducer_sensitivity and supply_voltage to use R = T.S. x V x 100 psig (manual section 4.2)."
+  },
+  "meter_offset": 0.0,
+  "tolerances": {
+    "Vr_pct": 1.0,
+    "V_LIN_pct": 10.0
+  },
+  "uncertainties": {
+    "pressure": 2.0,
+    "disc_volume_cm3": 0.002,
+    "_comment": "Standard (1-sigma) uncertainties of the inputs: meter-reading repeatability in counts (2 counts = 0.01 psi at R = 19836; increase if readings drift) and calibration-disc volume. Propagated to u(Vr), u(V_LIN) in the output and then into every measurement that uses this calibration."
+  },
+  "cells": [
+    {
+      "cell": "A",
+      "_comment": "Recommended disc set for cell A (manual section 4.6): P_DV with the 1-1/2\" cup full of discs; P1 with the 1/8\" disc removed (3.398 cm3); P2 with the 1/4\" disc removed (6.768 cm3). V1/V2 are the removed-disc volumes from the Annex A table for this instrument (V0 = 0 for the full cup).",
+      "disc_volumes_cm3": {
+        "V0": 0.0,
+        "V1": 3.398,
+        "V2": 6.768
+      },
+      "pressures": {
+        "P_DV": 17872.7,
+        "P1": 13967.4,
+        "P2": 11486.7
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "operator": "D. Janiga",
+    "date": "2026-07-15",
+    "temperature_C": 21.5
+  },
+  "calibration": {
+    "file": "calibration_result.json",
+    "cell": "A",
+    "_comment": "Points at the output of 'porosimeter.py calibrate'. Inline alternative: {\"R\": 19836.0, \"Vr_cm3\": 10.9175, \"V_LIN_cm3\": 0.061402}."
+  },
+  "_comment": "sample_type: \"core\"/\"rdzen\" (czopy rdzenia) or \"cuttings\"/\"okruchy\" (okruchy, ziarna, zwierciny). Set once here for the whole file; override per sample if needed. For cuttings only the matrix-cup grain-volume measurement applies (pore_volume and cylinder dimensions are ignored).",
+  "uncertainties": {
+    "pressure": 2.0,
+    "mass_g": 0.01,
+    "diameter_cm": 0.01,
+    "length_cm": 0.01,
+    "_comment": "Standard (1-sigma) uncertainties of the raw inputs, used to report each result as value +/- u: pressure readings in meter counts, dry mass, caliper dimensions. Override per sample with the same key inside a sample. u(Vr)/u(V_LIN) are taken from the calibration result file."
+  },
+  "sample_type": "core",
+  "samples": [
+    {
+      "sample_id": "S-01",
+      "dry_mass_g": 58.12,
+      "_comment": "grain_volume: P_DV = empty matrix cup, P1 = cup with sample; when the sample sits among discs in a 1\"/1-1/2\" cup, give P_DV for the full cup and add removed_disc_volume_cm3. pore_volume: P_DV = holder with solid plug, P1 = holder with sample. bulk_volume: plug dimensions or {\"value_cm3\": ...}; omit it to use V_T = Vg+Vp.",
+      "grain_volume": {
+        "P_DV": 6082.5,
+        "P1": 15432.7
+      },
+      "pore_volume": {
+        "P_DV": 11467.4,
+        "P1": 9537.6
+      },
+      "bulk_volume": {
+        "diameter_cm": 2.54,
+        "length_cm": 5.08
+      }
+    },
+    {
+      "sample_id": "S-02 (loose sand)",
+      "dry_mass_g": 21.507,
+      "_comment": "grain_volume: P_DV = empty matrix cup, P1 = cup with sample; when the sample sits among discs in a 1\"/1-1/2\" cup, give P_DV for the full cup and add removed_disc_volume_cm3.",
+      "grain_volume": {
+        "P_DV": 6082.5,
+        "P1": 7831.3
+      },
+      "sample_type": "okruchy"
+    }
+  ]
+}

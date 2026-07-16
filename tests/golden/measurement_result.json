@@ -1,0 +1,74 @@
+{
+  "type": "measurement_result",
+  "generated": "2026-07-16T10:00:46",
+  "meta": {
+    "operator": "D. Janiga",
+    "date": "2026-07-15",
+    "temperature_C": 21.5
+  },
+  "calibration": {
+    "source": "calibration_result.json (cell A)",
+    "R": 19836.0,
+    "Vr_cm3": 10.917798,
+    "V_LIN_cm3": 0.061065
+  },
+  "meter_offset": 0.0,
+  "samples": [
+    {
+      "sample_id": "S-01",
+      "sample_type": "core",
+      "dry_mass_g": 58.12,
+      "grain_volume": {
+        "P_DV": 6082.5,
+        "P1": 15432.7,
+        "removed_disc_volume_cm3": 0.0,
+        "V_D_cm3": 24.9991,
+        "Vg_cm3": 21.879,
+        "u_Vg_cm3": 0.1359
+      },
+      "pore_volume": {
+        "P_DV": 11467.4,
+        "P1": 9537.6,
+        "V_D_cm3": 8.0,
+        "Vp_cm3": 3.8599,
+        "u_Vp_cm3": 0.0153
+      },
+      "results": {
+        "V_T_cm3": 25.7407,
+        "u_V_T_cm3": 0.2089,
+        "V_T_method": "cylinder geometry",
+        "V_g_cm3": 21.879,
+        "u_V_g_cm3": 0.1359,
+        "grain_density_g_cm3": 2.6564,
+        "u_grain_density_g_cm3": 0.0165,
+        "V_p_cm3": 3.8599,
+        "u_V_p_cm3": 0.0153,
+        "porosity_pct": 14.995,
+        "u_porosity_pct": 0.136,
+        "bulk_density_g_cm3": 2.2579,
+        "u_bulk_density_g_cm3": 0.0183
+      },
+      "warnings": []
+    },
+    {
+      "sample_id": "S-02 (loose sand)",
+      "sample_type": "cuttings",
+      "dry_mass_g": 21.507,
+      "grain_volume": {
+        "P_DV": 6082.5,
+        "P1": 7831.3,
+        "removed_disc_volume_cm3": 0.0,
+        "V_D_cm3": 24.9991,
+        "Vg_cm3": 8.1196,
+        "u_Vg_cm3": 0.0857
+      },
+      "results": {
+        "V_g_cm3": 8.1196,
+        "u_V_g_cm3": 0.0857,
+        "grain_density_g_cm3": 2.6488,
+        "u_grain_density_g_cm3": 0.028
+      },
+      "warnings": []
+    }
+  ]
+}
