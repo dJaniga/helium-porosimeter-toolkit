@@ -82,6 +82,41 @@ use factory values; cells Mini/A/B/C are calibrated daily.
    until resolved.** A steadily falling reading always indicates a leak
    (isolate with INLET/HOLDER, check O-rings and ports MC-1/MC-2/RC).
 
+### Multi-point calibration (more than two discs)
+
+The two-disc procedure above is the three-point special case. To calibrate a
+cell from **more than three configurations** — for redundancy, or to average
+out reading scatter — replace `pressures`/`disc_volumes_cm3` for that cell
+with a `configurations` list:
+
+```jsonc
+{
+  "cell": "C",
+  "configurations": [
+    {"P": 17831.9, "V": 0.0},     // completely filled cup: void V = 0
+    {"P": 15682.2, "V": 3.398},   // P = equilibrium pressure (meter counts)
+    {"P": 14010.7, "V": 6.768},   // V = total void volume in the cup (cm³)
+    {"P": 12677.5, "V": 10.10},
+    {"P": 11572.6, "V": 13.45}
+  ]
+}
+```
+
+Each point obeys `V = Vr·x + V_LIN·x² − V_D` with `x = (R − P) / P`; `V` is the
+total void volume in the matrix cup at that pressure (0 for the fully filled
+cup, otherwise the removed-disc volume). With three points the fit is exact
+and identical to the two-disc solution; with more, `Vr`, `V_LIN` and `V_D` are
+least-squares fitted and the result gains a `fit` block:
+
+```json
+"fit": { "n_points": 5, "rms_residual_cm3": 0.0005, "max_residual_cm3": 0.0009 }
+```
+
+If any point deviates from the fitted curve by more than `fit_residual_pct` of
+`Vr` (default 1 %, override in `tolerances`), a warning flags the likely
+misread pressure or wrong void volume. Both input shapes may be mixed freely
+across cells in the same file.
+
 ## Measurements
 
 Configure the sample type once per input file (`"sample_type": "core"` or

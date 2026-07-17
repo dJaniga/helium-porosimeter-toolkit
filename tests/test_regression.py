@@ -26,6 +26,7 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from porosimeter import run_calibration, run_measurement  # noqa: E402
+from porosimeter.errors import InputError  # noqa: E402
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden")
 
@@ -68,6 +69,91 @@ class RegressionTest(unittest.TestCase):
                 os.path.join(GOLDEN, "_cli_smoke_result.json"))
             and os.remove(os.path.join(GOLDEN, "_cli_smoke_result.json")))
         self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
+class MultiPointCalibrationTest(unittest.TestCase):
+    """The general N-point "configurations" input shape (three or more)."""
+
+    R = 19836.0
+
+    def _run(self, cell):
+        data = {"reference_pressure": {"R": self.R}, "cells": [cell]}
+        return run_calibration(data)["cells"][0]
+
+    def test_three_configurations_match_legacy_solve(self):
+        """Three configurations reproduce the closed-form two-disc result."""
+        legacy = self._run({
+            "cell": "A",
+            "disc_volumes_cm3": {"V0": 0.0, "V1": 3.398, "V2": 6.768},
+            "pressures": {"P_DV": 17872.7, "P1": 13967.4, "P2": 11486.7},
+        })
+        cfg = self._run({
+            "cell": "A",
+            "configurations": [
+                {"P": 17872.7, "V": 0.0},
+                {"P": 13967.4, "V": 3.398},
+                {"P": 11486.7, "V": 6.768},
+            ],
+        })
+        for key in ("Vr_cm3", "V_LIN_cm3", "V_D_cm3"):
+            self.assertAlmostEqual(cfg[key], legacy[key], places=6)
+        # The configurations shape reports fit quality; the legacy shape does
+        # not (its three-point solve is always exact).
+        self.assertIn("fit", cfg)
+        self.assertNotIn("fit", legacy)
+        self.assertEqual(cfg["fit"]["n_points"], 3)
+        self.assertLess(cfg["fit"]["max_residual_cm3"], 1e-6)
+
+    def test_five_point_overdetermined_fit_recovers_curve(self):
+        """A clean five-point set recovers the curve with a tiny residual."""
+        import math
+
+        Vr, V_LIN, V_D = 22.2263, 0.155776, 3.0
+
+        def pressure_for_void(V):
+            a, b, c = V_LIN, Vr, -(V + V_D)
+            x = (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a)
+            return self.R / (1 + x)
+
+        cfgs = [{"P": pressure_for_void(V), "V": V}
+                for V in (0.0, 3.4, 6.8, 9.5, 12.3)]
+        c = self._run({"cell": "C", "configurations": cfgs})
+        self.assertEqual(c["fit"]["n_points"], 5)
+        self.assertAlmostEqual(c["Vr_cm3"], Vr, places=3)
+        self.assertAlmostEqual(c["V_LIN_cm3"], V_LIN, places=3)
+        self.assertAlmostEqual(c["V_D_cm3"], V_D, places=3)
+        self.assertLess(c["fit"]["max_residual_cm3"], 1e-4)
+        self.assertEqual(c["warnings"], [])
+
+    def test_bad_point_raises_residual_warning(self):
+        """A misread point inflates the residual and triggers a warning."""
+        import math
+
+        Vr, V_LIN, V_D = 22.2263, 0.155776, 3.0
+
+        def pressure_for_void(V):
+            a, b, c = V_LIN, Vr, -(V + V_D)
+            x = (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a)
+            return self.R / (1 + x)
+
+        cfgs = [{"P": pressure_for_void(V), "V": V}
+                for V in (0.0, 3.4, 6.8, 9.5, 12.3)]
+        cfgs[3]["P"] -= 300.0  # misread pressure on the fourth point
+        c = self._run({"cell": "C", "configurations": cfgs})
+        self.assertGreater(c["fit"]["max_residual_cm3"], 0.1)
+        self.assertTrue(any("deviates" in w and "fitted curve" in w
+                            for w in c["warnings"]))
+
+    def test_too_few_points_rejected(self):
+        with self.assertRaises(InputError):
+            self._run({"cell": "C", "configurations": [
+                {"P": 17000.0, "V": 0.0}, {"P": 13000.0, "V": 3.0}]})
+
+    def test_singular_pressures_rejected(self):
+        with self.assertRaises(InputError):
+            self._run({"cell": "C", "configurations": [
+                {"P": 17000.0, "V": 0.0}, {"P": 17000.0, "V": 3.0},
+                {"P": 17000.0, "V": 6.0}]})
 
 
 if __name__ == "__main__":

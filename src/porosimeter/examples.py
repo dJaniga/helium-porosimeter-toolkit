@@ -33,17 +33,36 @@ EXAMPLE_CALIBRATION = {
     },
     "cells": [
         {
-            "cell": "A",
-            "_comment": ("Recommended disc set for cell A (manual section "
+            "cell": "C",
+            "_comment": ("Recommended disc set for cell C (manual section "
                          "4.6): P_DV with the 1-1/2\" cup full of discs; "
-                         "P1 with the 1/8\" disc removed (3.398 cm3); P2 "
-                         "with the 1/4\" disc removed (6.768 cm3). V1/V2 "
+                         "P1 with the 3/8\" disc removed (10.144 cm3); P2 "
+                         "with the 3/4\" disc removed (20.460 cm3). V1/V2 "
                          "are the removed-disc volumes from the Annex A "
                          "table for this instrument (V0 = 0 for the full "
                          "cup)."),
-            "disc_volumes_cm3": {"V0": 0.0, "V1": 3.398, "V2": 6.768},
+            "disc_volumes_cm3": {"V0": 0.0, "V1": 10.144, "V2": 20.460},
             "pressures": {"P_DV": 17872.7, "P1": 13967.4, "P2": 11486.7},
-        }
+        },
+        {
+            "cell": "C",
+            "_comment": ("Alternative multi-point form: give three OR MORE "
+                         "\"configurations\", each a pressure P and the total "
+                         "void volume V in the matrix cup at that pressure "
+                         "(V = 0 for the completely filled cup, otherwise the "
+                         "removed-disc volume). With more than three points "
+                         "the constants Vr, V_LIN, V_D are least-squares "
+                         "fitted and a \"fit\" block reports the residuals so "
+                         "a misread point is flagged. Delete this cell if you "
+                         "only calibrate the two-disc way above."),
+            "configurations": [
+                {"P": 17831.9, "V": 0.0},
+                {"P": 15682.2, "V": 3.398},
+                {"P": 14010.7, "V": 6.768},
+                {"P": 12677.5, "V": 10.10},
+                {"P": 11572.6, "V": 13.45},
+            ],
+        },
     ],
 }
 

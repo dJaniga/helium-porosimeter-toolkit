@@ -17,8 +17,12 @@ FACTORY_CELLS = {
     "#2":   {"Vr": 575.5168, "V_LIN": 2.834110},
 }
 
-# Default tolerances for the daily check against factory values
-DEFAULT_TOLERANCES = {"Vr_pct": 1.0, "V_LIN_pct": 10.0}
+# Default tolerances for the daily check against factory values.
+# "fit_residual_pct" bounds, as a fraction of Vr, the largest allowed
+# deviation of any calibration point from the fitted curve (used only when
+# three or more configurations over-determine the fit).
+DEFAULT_TOLERANCES = {"Vr_pct": 1.0, "V_LIN_pct": 10.0,
+                      "fit_residual_pct": 1.0}
 
 # Sample types: core plugs (rdzenie) vs cuttings / loose grains (okruchy).
 SAMPLE_TYPES = {
