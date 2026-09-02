@@ -117,17 +117,21 @@ def measure_sample(sample, cal, offset=0.0, default_type="core",
     vals = {"Vr": cal["Vr"], "V_LIN": cal["V_LIN"]}
     u = {"Vr": cal.get("u_Vr", 0.0), "V_LIN": cal.get("u_V_LIN", 0.0)}
     if grain is not None:
-        vals["gP_DV"] = float(grain["P_DV"])  # cup empty (mini) or full
-        vals["gP1"] = float(grain["P1"])      # cup with sample
-        # 1"/1-1/2" cup variant: the sample replaces removed discs whose
-        # known volume is given (manual 3.6.2 step 9); 0 for an empty cup.
+        vals["gP_DV"] = float(grain["P_DV"])  # blank: cup without the sample
+        vals["gP1"] = float(grain["P1"])      # the same cup with the sample
+        # Discs may fill the gap around a small sample to cut the dead
+        # volume. Two equivalent conventions: the same stack in both runs,
+        # which cancels (0 here), or the completely filled cup as the blank
+        # with disc(s) taken out to make room for the sample, whose known
+        # total volume is given here (manual 3.6.2 step 9). Whatever differs
+        # between the two expansions belongs in this term.
         vals["gV_rem"] = float(grain.get("removed_disc_volume_cm3", 0.0))
         u["gP_DV"] = u["gP1"] = float(u_in["pressure"])
         u["gV_rem"] = (float(u_in["removed_disc_volume_cm3"])
                        if vals["gV_rem"] else 0.0)
     if pore is not None:
-        vals["pP_DV"] = float(pore["P_DV"])   # holder with solid plug
-        vals["pP1"] = float(pore["P1"])       # holder with core sample
+        vals["pP_DV"] = float(pore["P_DV"])   # blank: holder + solid plug
+        vals["pP1"] = float(pore["P1"])       # holder with the core sample
         u["pP_DV"] = u["pP1"] = float(u_in["pressure"])
     if ms is not None:
         vals["m"] = float(ms)
@@ -218,7 +222,9 @@ def measure_sample(sample, cal, offset=0.0, default_type="core",
         if Vg <= 0:
             warnings.append(
                 "Grain volume is not positive - P1 and P_DV are probably "
-                "swapped or the cup was not sealed.")
+                "swapped, the disc stack changed between the two readings "
+                "without removed_disc_volume_cm3, or the cup was not "
+                "sealed.")
         elif Vg < 1.0:
             warnings.append(
                 "Grain volume < 1 cm3: expect a larger percentage error "

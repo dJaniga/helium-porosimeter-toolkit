@@ -66,13 +66,20 @@ EXAMPLE_CALIBRATION = {
     ],
 }
 
-GRAIN_COMMENT = ("grain_volume: P_DV = empty matrix cup, P1 = cup "
-                 "with sample; when the sample sits among discs in "
-                 "a 1\"/1-1/2\" cup, give P_DV for the full cup and "
-                 "add removed_disc_volume_cm3.")
+GRAIN_COMMENT = ("grain_volume: P_DV = blank reading of the matrix cup "
+                 "in exactly the state used for P1 but WITHOUT the sample; "
+                 "P1 = the same cup with the sample. If discs fill the gap "
+                 "around a small sample, read P_DV with that disc stack in "
+                 "place and leave the stack untouched when adding the "
+                 "sample (removed_disc_volume_cm3 = 0). If instead the "
+                 "blank is the completely filled cup and disc(s) were taken "
+                 "out to make room for the sample, give their total volume "
+                 "in removed_disc_volume_cm3 (manual 3.6.2 step 9). Expect "
+                 "P1 > P_DV: the sample removes void.")
 CORE_COMMENT = (GRAIN_COMMENT +
-                " pore_volume: P_DV = holder with solid plug, P1 = holder "
-                "with sample. bulk_volume: plug dimensions or "
+                " pore_volume: P_DV = holder with a solid plug (blank), "
+                "P1 = holder with the sample; here expect P1 < P_DV, the "
+                "porous plug adds void. bulk_volume: plug dimensions or "
                 "{\"value_cm3\": ...}; omit it to use V_T = Vg+Vp.")
 
 SAMPLE_CORE_FULL = {

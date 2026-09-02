@@ -122,12 +122,20 @@ across cells in the same file.
 Configure the sample type once per input file (`"sample_type": "core"` or
 `"okruchy"`/`"cuttings"`), or per sample:
 
-- **Core plugs**: grain volume (matrix cup: `P_DV` empty cup, `P1` with
-  sample), pore volume (Hassler holder on MC-2: `P_DV` with solid plug, `P1`
-  with sample) and bulk volume from plug dimensions. Results: Vg, Vp, V_T,
-  grain/bulk density and porosity φ = Vp/V_T·100 %.
+- **Core plugs**: grain volume (matrix cup: `P_DV` without the sample, `P1`
+  with it), pore volume (Hassler holder on MC-2: `P_DV` with a solid plug,
+  `P1` with the sample) and bulk volume from plug dimensions. Results: Vg,
+  Vp, V_T, grain/bulk density and porosity φ = Vp/V_T·100 %.
 - **Cuttings / loose grains**: matrix-cup grain volume only → Vg and grain
   density (pore-volume and dimension blocks are ignored with a warning).
+
+In both blocks `P_DV` is the **blank** — the expansion into the cup or holder
+in exactly the state it will be in for `P1`, but without the sample. It fixes
+the dead volume `V_D` that `P1` is measured against; on its own it carries no
+sample information. The two blocks run in opposite directions: for grain
+volume the sample *takes space away*, so `P1` > `P_DV`; for pore volume the
+porous plug *adds* accessible space over the solid one, so `P1` < `P_DV`. A
+reversed pair is reported as a "volume is not positive" warning.
 
 Low-permeability samples (< 10 mD) may need up to 30 min to equilibrate —
 use a stopwatch and keep equilibration times consistent across a series.
@@ -135,6 +143,73 @@ use a stopwatch and keep equilibration times consistent across a series.
 ```bash
 python -m porosimeter measure examples/measurement_input.json
 ```
+
+### Gap-filling discs in the matrix cup
+
+A sample rarely fills the matrix cup, and the leftover void costs resolution:
+the smaller the volume the helium expands into, the more meter counts a given
+grain volume is worth. Calibration discs take up that slack. When they are
+used, `P_DV` is read **with the discs in place but without the sample** — not
+with an empty cup.
+
+Grain volume is evaluated as
+
+```
+Vg = V(P_DV) + V_removed − V(P1),   V(P) = Vr·x + V_LIN·x²,   x = (R − P) / P
+```
+
+so everything except the sample must be identical between the two expansions,
+and anything that did change goes into `removed_disc_volume_cm3`. That leaves
+two correct procedures.
+
+**1. Same disc stack in both runs (recommended).** Choose the stack that
+leaves a gap slightly larger than the sample — big enough to insert it, no
+bigger. Purge, expand, record `P_DV`. Add the sample *without touching the
+discs*, purge, expand, record `P1`. Omit `removed_disc_volume_cm3`:
+
+```json
+"grain_volume": { "P_DV": 14525.2, "P1": 18172.4 }
+```
+
+The disc volumes cancel algebraically and never enter the arithmetic, so the
+result does not depend on the Annex A disc table and carries no disc-volume
+uncertainty. The stack is part of the blank, so re-read `P_DV` whenever you
+rebuild it.
+
+**2. Full cup as the blank (manual section 3.6.2 step 9).** Record `P_DV`
+once with the cup completely filled, then remove disc(s) of known total volume
+to make room for the sample and record `P1`:
+
+```json
+"grain_volume": { "P_DV": 17872.8, "P1": 13643.4,
+                  "removed_disc_volume_cm3": 6.768 }
+```
+
+One blank then serves every sample size, at the cost of depending on the
+tabulated disc volumes. Both forms are exact and give the same Vg (3.000 cm³
+in the two examples above, cell A).
+
+What the discs buy is precision. The same 3 cm³ sample in cell A, with the
+default 2-count reading repeatability (pressure contribution only; `u(Vr)` and
+`u(V_LIN)` from the calibration add to the figure actually reported):
+
+| void in the blank | `P_DV` → `P1` | u(Vg) from the readings |
+| --- | --- | --- |
+| 25 cm³ (bare cup) | 6082 → 6628 | 0.0157 cm³ — 0.52 % |
+| 10 cm³ | 10378 → 12103 | 0.0050 cm³ — 0.17 % |
+| 4 cm³ (discs in) | 14525 → 18172 | 0.0024 cm³ — 0.08 % |
+
+Returns flatten out by roughly 4 cm³ of remaining void, so there is nothing to
+gain from packing the cup so tightly that the discs wedge the sample or spoil
+the metal-to-metal clamp. Large plugs fill the cup by themselves and need no
+discs; samples below 1 cm³ are flagged with a percentage-error warning either
+way.
+
+Keep both expansions procedurally identical — same purge sequence, same clamp,
+same equilibration time — since `P_DV` and `P1` are only comparable if the
+thermal state is. Re-read the blank after any change of cup, holder, disc
+stack or tubing, and on the same day as the samples, for the same barometric
+and thermal reasons that force a daily `Vr`/`V_LIN` calibration.
 
 Every result carries a standard uncertainty (1σ) propagated from the raw
 inputs (meter repeatability, disc volumes, balance, caliper) through the
