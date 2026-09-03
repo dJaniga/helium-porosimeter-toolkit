@@ -35,7 +35,7 @@ from .uncertainty import propagate
 def load_calibration_reference(block, base_dir, offset=0.0):
     """
     Resolve {R, Vr, V_LIN} for a measurement.  Either inline:
-        {"R": 19836.0, "Vr_cm3": 10.9175, "V_LIN_cm3": 0.061402}
+        {"R": 19836.0, "Vr_cm3": 22.2263, "V_LIN_cm3": 0.155776}
     (R is the raw meter reading; the file-level meter_offset is subtracted)
     or from a calibration result file produced by the "calibrate" command
     (which stores the already offset-corrected R):

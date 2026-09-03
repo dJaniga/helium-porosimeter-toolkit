@@ -1,11 +1,16 @@
 """
 Example input templates written by the "init" command.
 
-Both templates describe the same reference cell ("A"), so the pair can be
+Both templates describe the same reference cell ("C"), so the pair can be
 run end to end straight after "init":
 
     python -m porosimeter calibrate examples/calibration_input.json
     python -m porosimeter measure   examples/measurement_input.json
+
+The calibration template ships the recommended disc sequence for cell C:
+the full spacer stack in the Hassler holder, about a quarter of it removed,
+then the holder empty.  That last, widest configuration is what pins V_LIN
+down - see the README for the numbers behind the choice.
 """
 
 import json
@@ -39,25 +44,28 @@ EXAMPLE_CALIBRATION = {
     },
     "cells": [
         {
-            "cell": "A",
-            "_comment": ("Recommended disc set for cell A (manual section "
-                         "4.6): P_DV with the 1-1/2\" cup full of discs; "
-                         "P1 with the 1/8\" disc removed (3.398 cm3); P2 "
-                         "with the 1/4\" disc removed (6.768 cm3). V1/V2 "
-                         "are the removed-disc volumes from the Annex A "
-                         "table for this instrument (V0 = 0 for the full "
-                         "cup). More than two discs? Replace \"pressures\" "
-                         "and \"disc_volumes_cm3\" with \"configurations\": "
-                         "[{\"P\": 17872.7, \"V\": 0.0}, {\"P\": 13967.4, "
-                         "\"V\": 3.398}, ...], one entry per disc set - P "
-                         "the equilibrium reading, V the total void volume "
-                         "in the cup. Three points or more; beyond three "
-                         "the constants are least-squares fitted and a "
-                         "\"fit\" block reports the residuals. Add one "
-                         "object per cell you calibrate, and only one per "
-                         "cell."),
-            "disc_volumes_cm3": {"V0": 0.0, "V1": 3.398, "V2": 6.768},
-            "pressures": {"P_DV": 17872.7, "P1": 13967.4, "P2": 11486.7},
+            "cell": "C",
+            "_comment": ("Recommended three-point sequence for cell C, "
+                         "run in the Hassler holder on the port you "
+                         "measure through: (1) the FULL spacer-disc stack, "
+                         "V = 0; (2) about a quarter of the stack volume "
+                         "removed, V = 10.144 here; (3) every disc out, "
+                         "holder EMPTY, V = 40.770 here. V is the "
+                         "cumulative void - the sum of the discs removed "
+                         "so far - and you never put a disc back "
+                         "mid-sequence. The empty-holder point is what "
+                         "pins down V_LIN: stopping halfway triples "
+                         "u(V_LIN). The widest void must be at least Vr "
+                         "(22.23 cm3 for cell C). Add a fourth point if "
+                         "you want the fit-residual check that flags a "
+                         "misread pressure. Substitute your own disc "
+                         "volumes and readings; one object per cell you "
+                         "calibrate, and only one per cell."),
+            "configurations": [
+                {"P": 18820.3, "V": 0.0},
+                {"P": 13148.8, "V": 10.144},
+                {"P": 6926.1, "V": 40.770},
+            ],
         },
     ],
 }
@@ -81,10 +89,10 @@ EXAMPLE_MEASUREMENT = {
     },
     "calibration": {
         "file": "calibration_result.json",
-        "cell": "A",
+        "cell": "C",
         "_comment": ("Points at the output of 'python -m porosimeter "
                      "calibrate'. Inline alternative: {\"R\": 19836.0, "
-                     "\"Vr_cm3\": 10.9175, \"V_LIN_cm3\": 0.061402}."),
+                     "\"Vr_cm3\": 22.2263, \"V_LIN_cm3\": 0.155776}."),
     },
     "meter_offset": 0.0,
     "uncertainties": {
@@ -104,13 +112,13 @@ EXAMPLE_MEASUREMENT = {
             "sample_id": "S-01",
             "_comment": SAMPLE_COMMENT,
             "dry_mass_g": 58.12,
-            "core_holder": {"P_DV": 6082.5, "P1": 15432.7},
+            "core_holder": {"P_DV": 9374.0, "P1": 17395.7},
             "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08},
         },
         {
             "sample_id": "S-02",
             "dry_mass_g": 58.31,
-            "core_holder": {"P_DV": 6082.5, "P1": 15380.0},
+            "core_holder": {"P_DV": 9374.0, "P1": 17233.5},
             "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08},
         },
     ],
