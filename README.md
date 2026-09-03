@@ -1,10 +1,10 @@
 # helium-porosimeter-toolkit
 
 Python toolkit for the **Corexport Extended Range Helium Porosimeter (HMPoRZ)**.
-JSON-driven daily calibration (Vr, V_LIN with factory-value checks) and rock
-sample measurements — grain/pore volume, porosity and densities for core plugs
-and cuttings — with GUM uncertainty propagation. Includes the Polish
-measurement procedure (LaTeX) and lab docs.
+JSON-driven daily calibration (Vr, V_LIN with factory-value checks) and
+core-plug measurements — pore volume, porosity and bulk density — with GUM
+uncertainty propagation. Includes the Polish measurement procedure (LaTeX)
+and lab docs.
 
 The instrument determines rock porosity by Boyle's-law isothermal helium
 expansion: a known reference-cell volume of helium at pressure `R` is expanded
@@ -21,9 +21,7 @@ and were cross-checked against the manufacturer's HP-41 reference program
 ## Quick start
 
 ```bash
-python -m porosimeter init examples            # write example input templates
-python -m porosimeter init examples --core     # ...preconfigured for core plugs
-python -m porosimeter init examples --grains   # ...preconfigured for cuttings/grains
+python -m porosimeter init examples             # write example input templates
 
 python -m porosimeter calibrate examples/calibration_input.json
 python -m porosimeter measure   examples/measurement_input.json
@@ -117,107 +115,95 @@ If any point deviates from the fitted curve by more than `fit_residual_pct` of
 misread pressure or wrong void volume. Both input shapes may be mixed freely
 across cells in the same file.
 
-## Measurements
+## Pore-volume measurement
 
-Configure the sample type once per input file (`"sample_type": "core"` or
-`"okruchy"`/`"cuttings"`), or per sample:
+The toolkit measures **one quantity on the sample**: the pore volume of a
+core plug, by helium expansion into a Hassler core holder on port MC-2.
+Porosity and bulk density follow from it once the plug's bulk volume is
+known. Grain volume and loose material (cuttings, ziarna) are deliberately
+**not** supported — the matrix cup is used for calibration only.
 
-- **Core plugs**: grain volume (matrix cup: `P_DV` without the sample, `P1`
-  with it), pore volume (Hassler holder on MC-2: `P_DV` with a solid plug,
-  `P1` with the sample) and bulk volume from plug dimensions. Results: Vg,
-  Vp, V_T, grain/bulk density and porosity φ = Vp/V_T·100 %.
-- **Cuttings / loose grains**: matrix-cup grain volume only → Vg and grain
-  density (pore-volume and dimension blocks are ignored with a warning).
+### Procedure (per plug)
 
-In both blocks `P_DV` is the **blank** — the expansion into the cup or holder
-in exactly the state it will be in for `P1`, but without the sample. It fixes
-the dead volume `V_D` that `P1` is measured against; on its own it carries no
-sample information. The two blocks run in opposite directions: for grain
-volume the sample *takes space away*, so `P1` > `P_DV`; for pore volume the
-porous plug *adds* accessible space over the solid one, so `P1` < `P_DV`. A
-reversed pair is reported as a "volume is not positive" warning.
+1. Dry and weigh the plug; record `dry_mass_g` (optional, needed only for
+   bulk density). Measure its diameter and length with a caliper.
+2. Load the **solid steel plug** into the Hassler holder, clamp it and apply
+   the confining pressure you will use for the sample.
+3. Purge with helium, set the meter to the reference value **R** exactly as
+   in the calibration procedure, close SOURCE.
+4. Close EXHAUST, open INLET; once the reading stabilises record it as
+   **`P_DV`** — the blank. It fixes the dead volume `V_D` of the holder,
+   its tubing and the annulus around the plug.
+5. Replace the solid plug with the core sample, keeping everything else
+   identical (same holder, same confining pressure, same purge sequence).
+6. Repeat steps 3–4 and record the reading as **`P1`**.
 
-Low-permeability samples (< 10 mD) may need up to 30 min to equilibrate —
-use a stopwatch and keep equilibration times consistent across a series.
+Expect **`P1` < `P_DV`**: the porous sample offers the helium more space
+than the solid plug did, so the gas expands further and settles lower. The
+pore volume is the difference of the two expanded volumes,
+
+```
+Vp = V(P1) − V(P_DV),   V(P) = Vr·x + V_LIN·x²,   x = (R − P) / P
+```
+
+A reversed pair gives a negative Vp and is reported as a warning.
+
+The blank belongs to the holder, not to the sample: read `P_DV` once per
+session and reuse it for every plug measured on the same holder at the same
+confining pressure, but re-read it after any change of holder, plug size,
+tubing or confining pressure, and on each new measurement day — the same
+barometric and thermal drift that forces a daily `Vr`/`V_LIN` calibration
+moves `V_D` too. Keep both expansions procedurally identical; they are only
+comparable if the thermal state is. Low-permeability samples (< 10 mD) may
+need up to 30 min to equilibrate — use a stopwatch and keep equilibration
+times consistent across a series.
+
+### Input
+
+```json
+{
+  "calibration": { "file": "calibration_result.json", "cell": "A" },
+  "samples": [
+    {
+      "sample_id": "S-01",
+      "dry_mass_g": 58.12,
+      "pore_volume": { "P_DV": 11467.4, "P1": 9537.6 },
+      "bulk_volume": { "diameter_cm": 2.54, "length_cm": 5.08 }
+    }
+  ]
+}
+```
+
+- `pore_volume` — **required**; both readings, in meter counts.
+- `bulk_volume` — optional; either caliper dimensions as above, or
+  `{"value_cm3": 25.7407}` from an independent method (mercury
+  displacement, Archimedes). Without it only Vp is reported, with a warning
+  that porosity and bulk density need the plug's total volume.
+- `dry_mass_g` — optional; used for the bulk density only.
 
 ```bash
 python -m porosimeter measure examples/measurement_input.json
 ```
 
-### Gap-filling discs in the matrix cup
+### Results
 
-A sample rarely fills the matrix cup, and the leftover void costs resolution:
-the smaller the volume the helium expands into, the more meter counts a given
-grain volume is worth. Calibration discs take up that slack. When they are
-used, `P_DV` is read **with the discs in place but without the sample** — not
-with an empty cup.
+| key | meaning |
+| --- | --- |
+| `V_p_cm3` | pore volume, cm³ |
+| `V_T_cm3` | bulk volume, cm³ (`V_T_method` says which route produced it) |
+| `porosity_pct` | φ = Vp / V_T · 100 % |
+| `bulk_density_g_cm3` | dry mass / V_T |
 
-Grain volume is evaluated as
-
-```
-Vg = V(P_DV) + V_removed − V(P1),   V(P) = Vr·x + V_LIN·x²,   x = (R − P) / P
-```
-
-so everything except the sample must be identical between the two expansions,
-and anything that did change goes into `removed_disc_volume_cm3`. That leaves
-two correct procedures.
-
-**1. Same disc stack in both runs (recommended).** Choose the stack that
-leaves a gap slightly larger than the sample — big enough to insert it, no
-bigger. Purge, expand, record `P_DV`. Add the sample *without touching the
-discs*, purge, expand, record `P1`. Omit `removed_disc_volume_cm3`:
-
-```json
-"grain_volume": { "P_DV": 14525.2, "P1": 18172.4 }
-```
-
-The disc volumes cancel algebraically and never enter the arithmetic, so the
-result does not depend on the Annex A disc table and carries no disc-volume
-uncertainty. The stack is part of the blank, so re-read `P_DV` whenever you
-rebuild it.
-
-**2. Full cup as the blank (manual section 3.6.2 step 9).** Record `P_DV`
-once with the cup completely filled, then remove disc(s) of known total volume
-to make room for the sample and record `P1`:
-
-```json
-"grain_volume": { "P_DV": 17872.8, "P1": 13643.4,
-                  "removed_disc_volume_cm3": 6.768 }
-```
-
-One blank then serves every sample size, at the cost of depending on the
-tabulated disc volumes. Both forms are exact and give the same Vg (3.000 cm³
-in the two examples above, cell A).
-
-What the discs buy is precision. The same 3 cm³ sample in cell A, with the
-default 2-count reading repeatability (pressure contribution only; `u(Vr)` and
-`u(V_LIN)` from the calibration add to the figure actually reported):
-
-| void in the blank | `P_DV` → `P1` | u(Vg) from the readings |
-| --- | --- | --- |
-| 25 cm³ (bare cup) | 6082 → 6628 | 0.0157 cm³ — 0.52 % |
-| 10 cm³ | 10378 → 12103 | 0.0050 cm³ — 0.17 % |
-| 4 cm³ (discs in) | 14525 → 18172 | 0.0024 cm³ — 0.08 % |
-
-Returns flatten out by roughly 4 cm³ of remaining void, so there is nothing to
-gain from packing the cup so tightly that the discs wedge the sample or spoil
-the metal-to-metal clamp. Large plugs fill the cup by themselves and need no
-discs; samples below 1 cm³ are flagged with a percentage-error warning either
-way.
-
-Keep both expansions procedurally identical — same purge sequence, same clamp,
-same equilibration time — since `P_DV` and `P1` are only comparable if the
-thermal state is. Re-read the blank after any change of cup, holder, disc
-stack or tubing, and on the same day as the samples, for the same barometric
-and thermal reasons that force a daily `Vr`/`V_LIN` calibration.
+The echoed `pore_volume` block keeps the two raw readings and the dead
+volume `V_D_cm3` — check it against the known holder geometry (≈ 8 cm³ for
+the Hassler holder with a solid plug); a `V_D` off by more than a few tenths
+means a leak, a bad seat or the wrong cell constants.
 
 Every result carries a standard uncertainty (1σ) propagated from the raw
-inputs (meter repeatability, disc volumes, balance, caliper) through the
-calibration (including the Vr–V_LIN covariance), e.g.
-`porosity = 14.99 ± 0.14 %`. Defaults reproduce the ±0.5 % grain-volume
-accuracy stated by the manufacturer and were verified against a
-20 000-trial Monte Carlo simulation; override them in the `"uncertainties"`
-block when conditions are worse.
+inputs (meter repeatability, balance, caliper) through the calibration
+(including the Vr–V_LIN covariance), e.g. `porosity = 14.99 ± 0.14 %`.
+Defaults were verified against a 20 000-trial Monte Carlo simulation;
+override them in the `"uncertainties"` block when conditions are worse.
 
 ## Traceability
 

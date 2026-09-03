@@ -6,10 +6,13 @@ Uzyciu Helowego Miernika Porowatosci o Rozszerzonym Zakresie (HMPoRZ)":
 
   * daily hardware calibration of a reference cell (Vr, V_LIN, V_D)
     from the two-disc procedure, eqs. (4)-(11) of the procedure,
-  * grain-volume measurement with a matrix cup, eqs. (12)-(13),
-  * pore-volume measurement with a Hassler core holder, eqs. (14)-(15),
-  * derived results: bulk volume, grain density, bulk density, porosity,
+  * pore-volume measurement of core plugs with a Hassler core holder,
+    eqs. (14)-(15),
+  * derived results: bulk volume, porosity and bulk density,
     eqs. (16)-(20).
+
+Grain-volume / matrix-cup measurement of samples is deliberately not
+supported: the matrix cup is used for calibration only.
 
 All interaction is file based (JSON in, JSON out):
 
