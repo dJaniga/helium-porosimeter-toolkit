@@ -33,26 +33,17 @@ def default_output(input_path):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="HMPoRZ helium porosimeter: calibration and measurement "
-                    "calculations with JSON file input/output.")
+        description="HMPoRZ helium porosimeter: reference-cell calibration "
+                    "and core-plug pore-volume measurement, with JSON file "
+                    "input/output.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_init = sub.add_parser("init", help="write example input JSON files")
     p_init.add_argument("directory", nargs="?", default="examples")
-    type_group = p_init.add_mutually_exclusive_group()
-    type_group.add_argument(
-        "--core", "--rdzenie", dest="core", action="store_true",
-        help="configure the templates for core plugs (rdzenie): grain "
-             "volume + Hassler pore volume + plug dimensions")
-    type_group.add_argument(
-        "--grains", "--okruchy", "--cuttings", dest="grains",
-        action="store_true",
-        help="configure the templates for loose material (okruchy, "
-             "ziarna): matrix-cup grain volume only")
 
     for name, help_text in (
             ("calibrate", "compute Vr, V_LIN, V_D from a calibration input"),
-            ("measure", "compute grain/pore volumes, porosity and densities")):
+            ("measure", "compute pore volume, porosity and bulk density")):
         p = sub.add_parser(name, help=help_text)
         p.add_argument("input", help="input JSON file")
         p.add_argument("-o", "--output",
@@ -61,11 +52,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "init":
-        mode = "core" if args.core else ("cuttings" if args.grains else None)
-        for path in write_examples(args.directory, mode):
+        for path in write_examples(args.directory):
             print("wrote %s" % path)
-        if mode:
-            print("templates configured for sample type: %s" % mode)
         return 0
 
     try:

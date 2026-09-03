@@ -31,17 +31,13 @@ def print_summary(result):
                 return "%s = %s %s" % (label, val, unit)
 
             parts = []
-            for key, label in (("V_g_cm3", "Vg"), ("V_p_cm3", "Vp"),
-                               ("V_T_cm3", "VT")):
+            for key, label in (("V_p_cm3", "Vp"), ("V_T_cm3", "VT")):
                 if key in r:
                     parts.append(fmt(key, label, "cm3", 3))
             if "porosity_pct" in r:
                 parts.append(fmt("porosity_pct", "porosity", "%", 2))
-            if "grain_density_g_cm3" in r:
-                parts.append(fmt("grain_density_g_cm3", "Dg", "g/cm3", 3))
             if "bulk_density_g_cm3" in r:
                 parts.append(fmt("bulk_density_g_cm3", "rho_b", "g/cm3", 3))
-            label = "%s [%s]:" % (s["sample_id"], s["sample_type"])
-            print("  %-12s %s" % (label, ",  ".join(parts)))
+            print("  %-12s %s" % (s["sample_id"] + ":", ",  ".join(parts)))
             for w in s["warnings"]:
                 print("    WARNING: %s" % w)
