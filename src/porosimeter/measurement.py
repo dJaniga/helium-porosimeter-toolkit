@@ -1,12 +1,24 @@
 """
-Pore-volume measurement of core plugs (procedure sections 6-8): helium
-expansion into the Hassler core holder, and the derived porosity and bulk
-density.
+Porosity of core plugs measured with the Hassler core holder (procedure
+sections 6-8).
 
-One sample, one measurement: two meter readings taken on the core holder,
-`P_DV` (blank - the holder closed on the solid steel plug) and `P1` (the
-same holder with the core plug in it).  The difference of the two expanded
-volumes is the pore volume.
+Two helium expansions into the same holder, with the same spacer discs in
+place both times:
+
+    P_DV  blank   - the selected spacer discs alone, the core's space left
+                    open and gas-accessible
+    P1    sample  - the same discs, undisturbed, with the core added
+
+The core fills that space with solid while helium re-enters its pore
+network, so what the core removes from the gas volume is its solid
+framework:
+
+    Vg = V(P_DV) - V(P1)          grain volume, directly measured
+    Vp = V_T - Vg                 pore volume, from the caliper bulk volume
+
+Adding the core reduces the gas space, so P1 > P_DV.  The discs cancel
+because they do not move between the two readings, and the holder does not
+need to be packed full - only unchanged apart from the core.
 """
 
 import json
@@ -80,32 +92,36 @@ def load_calibration_reference(block, base_dir, offset=0.0):
             '{"R", "Vr_cm3", "V_LIN_cm3"}.')
 
 
-def _read_pore_pressures(sample, sid):
+def _read_holder_pressures(sample, sid):
     """The two required meter readings taken on the core holder."""
-    pore = sample.get("pore_volume")
-    if pore is None:
+    holder = sample.get("core_holder")
+    if holder is None:
         raise InputError(
-            'Sample "%s": a "pore_volume" block is required - the helium '
-            'expansion into the core holder is the only measurement this '
-            'toolkit performs.' % sid)
+            'Sample "%s": a "core_holder" block is required - the two helium '
+            'expansions into the holder are the measurement this toolkit '
+            'performs.' % sid)
     try:
-        return float(pore["P_DV"]), float(pore["P1"])
+        return float(holder["P_DV"]), float(holder["P1"])
     except (KeyError, TypeError, ValueError):
         raise InputError(
-            'Sample "%s": "pore_volume" needs the numeric readings "P_DV" '
-            '(blank: the holder closed on the solid plug) and "P1" (the '
-            'same holder with the core sample).' % sid)
+            'Sample "%s": "core_holder" needs the numeric readings "P_DV" '
+            '(blank: the selected spacer discs alone) and "P1" (the same '
+            'discs, undisturbed, with the core added).' % sid)
 
 
 def _read_bulk_volume(sample, sid, vals, u, u_in):
     """
-    Total (bulk) volume of the plug: either measured off the plug with a
-    caliper, or supplied ready-made.  Fills `vals` / `u` and returns the
-    method name, or None when the block is absent.
+    Total (bulk) volume of the plug, required: these two readings measure
+    the grain volume, so the pore volume is Vp = V_T - Vg.  Either caliper
+    dimensions or a ready-made value.  Fills `vals` / `u`, returns the
+    method name.
     """
     bulk = sample.get("bulk_volume")
     if bulk is None:
-        return None
+        raise InputError(
+            'Sample "%s": a "bulk_volume" block is required - the two '
+            'readings measure the grain volume, and the pore volume is the '
+            'bulk volume of the plug minus it.' % sid)
     if not isinstance(bulk, dict):
         raise InputError('Sample "%s": "bulk_volume" must be an object.' % sid)
     if "value_cm3" in bulk:
@@ -139,7 +155,7 @@ def measure_sample(sample, cal, offset=0.0, unc_file=None):
     u_in.update(sample.get("uncertainties", {}))
 
     # ---- assemble the input vector (values + standard uncertainties) -------
-    P_DV, P1 = _read_pore_pressures(sample, sid)
+    P_DV, P1 = _read_holder_pressures(sample, sid)
     vals = {"Vr": cal["Vr"], "V_LIN": cal["V_LIN"], "P_DV": P_DV, "P1": P1}
     u = {"Vr": cal.get("u_Vr", 0.0), "V_LIN": cal.get("u_V_LIN", 0.0),
          "P_DV": float(u_in["pressure"]), "P1": float(u_in["pressure"])}
@@ -154,25 +170,21 @@ def measure_sample(sample, cal, offset=0.0, unc_file=None):
     def compute(v):
         """All derived quantities from the raw inputs (used for the nominal
         result and, re-evaluated with perturbed inputs, for propagation)."""
-        # V_D is the dead volume of the holder, its tubing and the annulus
-        # around the solid plug; the porous sample adds its pore space to it.
+        # V_D is the gas space of the holder with the selected spacer discs
+        # in it and no core.  Adding the core displaces its solid framework
+        # only: helium re-enters the pore space, so the difference is Vg.
         V_D = expanded_volume(R, v["P_DV"], v["Vr"], v["V_LIN"], offset)
-        out = {
-            "V_D_cm3": V_D,
-            "V_p_cm3": expanded_volume(R, v["P1"], v["Vr"], v["V_LIN"],
-                                       offset) - V_D,
-        }
+        Vg = V_D - expanded_volume(R, v["P1"], v["Vr"], v["V_LIN"], offset)
         if vt_method == "given":
-            out["V_T_cm3"] = v["V_T"]
-        elif vt_method == "cylinder geometry":
-            out["V_T_cm3"] = (math.pi * v["diameter"] * v["diameter"] / 4.0
-                              * v["length"])
+            V_T = v["V_T"]
         else:
-            return out
-        if out["V_T_cm3"] > 0:
-            out["porosity_pct"] = 100.0 * out["V_p_cm3"] / out["V_T_cm3"]
+            V_T = math.pi * v["diameter"] * v["diameter"] / 4.0 * v["length"]
+        out = {"V_D_cm3": V_D, "V_g_cm3": Vg, "V_T_cm3": V_T,
+               "V_p_cm3": V_T - Vg}
+        if V_T > 0:
+            out["porosity_pct"] = 100.0 * out["V_p_cm3"] / V_T
             if "mass" in v:
-                out["bulk_density_g_cm3"] = v["mass"] / out["V_T_cm3"]
+                out["bulk_density_g_cm3"] = v["mass"] / V_T
         return out
 
     y0 = compute(vals)
@@ -188,19 +200,18 @@ def measure_sample(sample, cal, offset=0.0, unc_file=None):
             u_y[k] = math.sqrt(max(var, 0.0))
 
     # ---- plausibility checks -----------------------------------------------
-    if y0["V_p_cm3"] <= 0:
+    if y0["V_g_cm3"] <= 0:
         warnings.append(
-            "Pore volume is not positive - P_DV (blank, solid plug) and P1 "
-            "(core sample) are probably swapped, or the holder did not seal.")
-    elif y0.get("porosity_pct", 0.0) >= 100.0:
+            "Grain volume is not positive - adding the core must RAISE the "
+            "reading (P1 > P_DV); the two readings are probably swapped, a "
+            "disc moved between them, or - if the blank already packed the "
+            "core's space with steel - the holder is in the matched-blank "
+            "regime, where Vp is the difference of the readings itself.")
+    elif y0["V_p_cm3"] <= 0:
         warnings.append(
-            "Porosity is at or above 100 percent - the pore volume exceeds "
-            "the bulk volume of the plug; check the plug dimensions and the "
-            "holder for a leak.")
-    if vt_method is None:
-        warnings.append(
-            'No "bulk_volume" block: the pore volume was computed, but '
-            "porosity and bulk density need the total volume of the plug.")
+            "Pore volume is not positive - the measured grain volume equals "
+            "or exceeds the bulk volume of the plug; check the caliper "
+            "dimensions and the holder seal.")
 
     # ---- report ------------------------------------------------------------
     def put(dest, key, digits):
@@ -212,13 +223,14 @@ def measure_sample(sample, cal, offset=0.0, unc_file=None):
     result = {"sample_id": sid}
     if mass is not None:
         result["dry_mass_g"] = float(mass)
-    result["pore_volume"] = {"P_DV": P_DV, "P1": P1,
-                             "V_D_cm3": round(y0["V_D_cm3"], 4)}
+    # The readings and what they measure directly, for the record card.
+    result["core_holder"] = {"P_DV": P_DV, "P1": P1,
+                             "V_D_cm3": round(y0["V_D_cm3"], 4),
+                             "V_g_cm3": round(y0["V_g_cm3"], 4)}
     derived = {}
     put(derived, "V_p_cm3", 4)
     put(derived, "V_T_cm3", 4)
-    if vt_method is not None:
-        derived["V_T_method"] = vt_method
+    derived["V_T_method"] = vt_method
     put(derived, "porosity_pct", 3)
     put(derived, "bulk_density_g_cm3", 4)
     result["results"] = derived

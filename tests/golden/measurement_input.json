@@ -19,11 +19,11 @@
   "samples": [
     {
       "sample_id": "S-01",
-      "_comment": "pore_volume (required): P_DV = blank reading with the Hassler holder closed on the solid steel plug; P1 = the same holder with the core plug in it. bulk_volume (optional): caliper dimensions of the plug, or {\"value_cm3\": ...}. dry_mass_g (optional): used for the bulk density.",
+      "_comment": "core_holder (required): P_DV = the selected spacer discs alone in the holder, P1 = the same discs, undisturbed, with the core added. Expect P1 > P_DV. bulk_volume (required): caliper dimensions or {\"value_cm3\": ...}. dry_mass_g (optional): used for the bulk density.",
       "dry_mass_g": 58.12,
-      "pore_volume": {
-        "P_DV": 11467.4,
-        "P1": 9537.6
+      "core_holder": {
+        "P_DV": 6082.5,
+        "P1": 15432.7
       },
       "bulk_volume": {
         "diameter_cm": 2.54,

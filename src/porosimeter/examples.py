@@ -63,13 +63,15 @@ EXAMPLE_CALIBRATION = {
 }
 
 SAMPLE_COMMENT = (
-    "pore_volume (required): P_DV = blank reading with the Hassler holder "
-    "closed on the solid steel plug; P1 = the same holder with the core "
-    "plug in it. Expect P1 < P_DV - the porous sample adds accessible "
-    "volume to the holder. bulk_volume (optional): caliper dimensions of "
-    "the plug, or {\"value_cm3\": ...} from an independent method; without "
-    "it only Vp is reported, with it also porosity. dry_mass_g (optional): "
-    "dry mass of the plug, used for the bulk density.")
+    "core_holder (required): the two Hassler-holder readings. Pick the "
+    "spacer discs that leave a gap just big enough for the plug, read P_DV "
+    "with those discs alone, then add the core WITHOUT disturbing them and "
+    "read P1. Expect P1 > P_DV: the core displaces gas space. The disc "
+    "volumes cancel and the holder need not be packed full. bulk_volume "
+    "(required): caliper dimensions of the plug, or {\"value_cm3\": ...} "
+    "from an independent method - the readings give the grain volume, so "
+    "the pore volume is Vp = V_T - Vg. dry_mass_g (optional): dry mass of "
+    "the plug, used for the bulk density.")
 
 EXAMPLE_MEASUREMENT = {
     "meta": {
@@ -102,13 +104,13 @@ EXAMPLE_MEASUREMENT = {
             "sample_id": "S-01",
             "_comment": SAMPLE_COMMENT,
             "dry_mass_g": 58.12,
-            "pore_volume": {"P_DV": 11467.4, "P1": 9537.6},
+            "core_holder": {"P_DV": 6082.5, "P1": 15432.7},
             "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08},
         },
         {
             "sample_id": "S-02",
             "dry_mass_g": 58.31,
-            "pore_volume": {"P_DV": 11467.4, "P1": 9602.1},
+            "core_holder": {"P_DV": 6082.5, "P1": 15380.0},
             "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08},
         },
     ],
