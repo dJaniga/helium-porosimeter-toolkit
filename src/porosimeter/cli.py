@@ -88,8 +88,8 @@ def main(argv=None):
              "toolkit")
     p_export.add_argument(
         "input",
-        help="measurement input JSON (preferred: it carries the caliper "
-             "dimensions and provenance) or a measurement result JSON")
+        help="measurement input JSON (preferred: only it carries the "
+             "provenance keys) or a measurement result JSON")
     p_export.add_argument(
         "-o", "--output", metavar="DIR",
         help="output directory (default: <input>_samples)")

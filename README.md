@@ -435,11 +435,12 @@ python -m porosimeter export examples/measurement_input.json
 # -> examples/measurement_samples/S-01.yaml, S-02.yaml
 ```
 
-Give the **measurement input** file, not the result: the caliper dimensions
-and the provenance keys live there, and the porosity and densities are
-computed on the way out. A result file is also accepted, but it no longer
-knows the dimensions — only the bulk volume they produced — so `length` and
-`diameter` come out `null` with a warning.
+Prefer the **measurement input** file: the provenance keys live only there,
+and the porosity and densities are computed on the way out. A result file
+gives identical numbers — it echoes the caliper dimensions next to the
+volume they produced — but exports the provenance as empty defaults. Only a
+`bulk_volume` given as `{"value_cm3": ...}` leaves `length` and `diameter`
+`null`, with a warning: two dimensions cannot be recovered from one volume.
 
 | option | meaning |
 | --- | --- |
@@ -454,8 +455,8 @@ hold are replaced; the id itself is written unchanged inside the file):
 | `id` | `sample_id` |
 | `length`, `diameter` | `bulk_volume.length_cm` / `.diameter_cm`, `dimension_unit: cm` |
 | `length_uncertainty`, `diameter_uncertainty` | the caliper uncertainties used in the propagation |
-| `porosity_fraction` | `porosity_pct / 100` |
-| `bulk_density_g_cm3` | dry mass / V_T |
+| `porosity_fraction` | `porosity_pct / 100`, with `u_porosity_pct / 100` as a trailing `+/-` comment |
+| `bulk_density_g_cm3` | dry mass / V_T, with `u_bulk_density_g_cm3` as a trailing comment |
 | `grain_density_g_cm3` | dry mass / the measured `V_g_cm3` |
 | `prepared_by`, `prepared_on` | `meta.operator`, `meta.date` (per-sample keys win) |
 | `description`, `lithology`, `formation`, `well`, `depth`, `depth_unit`, `notes` | optional keys of the same name on the sample |
@@ -474,9 +475,17 @@ in the measurement input and they are carried through:
 }
 ```
 
-Note that `grain_density_g_cm3` is the one exported value nothing
-downstream could reconstruct: it comes from `V_g`, which the two holder
-readings measure directly.
+Two things worth knowing about the exported file. `grain_density_g_cm3` is
+the one value nothing downstream could reconstruct: it comes from `V_g`,
+which the two holder readings measure directly. And the propagated 1σ
+values have no field in the gasperm schema, so they are written as comments
+on the line they belong to — the uncertainty stays with the number without
+adding a key the other toolkit would have to know about:
+
+```yaml
+porosity_fraction: 0.15003                  # +/- 0.00692 (1 sigma)
+bulk_density_g_cm3: 2.2579                  # +/- 0.0183 (1 sigma)
+```
 
 ## Traceability
 

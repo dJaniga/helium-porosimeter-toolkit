@@ -14,10 +14,12 @@ Currently one target format:
              grain density are carried as provenance.
 
 The export takes a measurement input file (the same one "measure" takes):
-the plug geometry, provenance and uncertainties live there, and the derived
+the provenance and the input uncertainties live there, and the derived
 porosity and densities are computed on the way out.  A measurement *result*
-file also works, but it no longer knows the caliper dimensions - only the
-bulk volume they produced - so the geometry fields come out empty.
+file works just as well for the numbers - it echoes the caliper dimensions
+next to the volume they produced - but it carries no provenance keys.
+Either way the propagated 1-sigma values ride along as comments, since the
+gasperm schema has no field for them.
 """
 
 import os
@@ -64,6 +66,11 @@ def _scalar(value):
     return "'%s'" % text.replace("'", "''")
 
 
+def _plus_minus(u):
+    """The 1-sigma comment for a value line, or nothing when unavailable."""
+    return None if not u else "+/- %s (1 sigma)" % _fmt_number(u)
+
+
 def _line(key, value, comment=None, pad=44):
     text = "%s: %s" % (key, _scalar(value))
     if comment:
@@ -81,17 +88,22 @@ def _uncertainties(data, sample):
     return u
 
 
-def _geometry(sample):
+def _geometry(sample, result):
     """
-    Caliper dimensions of the plug, in cm.  A bulk volume given as a ready
-    made value carries no dimensions, and gasperm needs both, so the export
-    says so instead of inventing them from the volume.
+    Caliper dimensions of the plug, in cm.  Either from the input record or
+    from the result, which echoes them next to the volume they produced -
+    so exporting a result file keeps the geometry too.  Only a bulk volume
+    given as a ready-made value leaves them missing, and gasperm needs
+    both, so the export says so rather than inventing them from V_T.
     """
-    bulk = sample.get("bulk_volume") or {}
-    if "diameter_cm" in bulk and "length_cm" in bulk:
-        return float(bulk["length_cm"]), float(bulk["diameter_cm"]), None
+    for source in (sample.get("bulk_volume") or {},
+                   result.get("results") or {}):
+        if source.get("diameter_cm") is not None \
+                and source.get("length_cm") is not None:
+            return float(source["length_cm"]), float(source["diameter_cm"]), \
+                None
     return None, None, (
-        "no caliper dimensions in the input (the bulk volume was given "
+        "no caliper dimensions available (the bulk volume was given "
         "directly) - fill in length and diameter before running gasperm")
 
 
@@ -106,7 +118,7 @@ def gasperm_fields(sample, result, data):
     meta = data.get("meta", {}) or {}
     derived = result.get("results", {})
     u = _uncertainties(data, sample)
-    length, diameter, geom_warning = _geometry(sample)
+    length, diameter, geom_warning = _geometry(sample, result)
     if geom_warning:
         warnings.append(geom_warning)
 
@@ -128,6 +140,7 @@ def gasperm_fields(sample, result, data):
                 "grain volume is not positive - grain density left empty")
 
     porosity = derived.get("porosity_pct")
+    u_porosity = derived.get("u_porosity_pct")
     if porosity is None:
         warnings.append(
             "no porosity in the result - porosity_fraction is null")
@@ -147,6 +160,13 @@ def gasperm_fields(sample, result, data):
         "diameter_uncertainty": float(u["diameter_cm"]),
         "porosity_fraction": (None if porosity is None
                               else round(porosity / 100.0, 5)),
+        # The propagated 1-sigma values have no field in the gasperm schema,
+        # so they ride along as comments on the line they belong to: the
+        # number stays traceable without inventing a key its loader would
+        # have to know about.
+        "u_porosity_fraction": (None if u_porosity is None
+                                else round(u_porosity / 100.0, 5)),
+        "u_bulk_density_g_cm3": derived.get("u_bulk_density_g_cm3"),
         "porosity_method": "Helium porosity",
         "grain_density_g_cm3": grain_density,
         "bulk_density_g_cm3": derived.get("bulk_density_g_cm3", ""),
@@ -199,12 +219,16 @@ def render_gasperm(fields, source=None):
               "standard uncertainty, cm -- counts double"),
         "",
         "# Petrophysics. Informational; not used by the Darcy calc.",
-        _line("porosity_fraction", fields["porosity_fraction"]),
+        "# The +/- values are standard (1-sigma) uncertainties propagated",
+        "# from the meter, balance, caliper and the calibration constants.",
+        _line("porosity_fraction", fields["porosity_fraction"],
+              _plus_minus(fields["u_porosity_fraction"])),
         _line("porosity_method", fields["porosity_method"],
               "helium pycnometry, MICP, image analysis, ..."),
         _line("grain_density_g_cm3", fields["grain_density_g_cm3"],
               "dry mass / measured grain volume"),
-        _line("bulk_density_g_cm3", fields["bulk_density_g_cm3"]),
+        _line("bulk_density_g_cm3", fields["bulk_density_g_cm3"],
+              _plus_minus(fields["u_bulk_density_g_cm3"])),
         "",
         "# Provenance.",
         _line("prepared_by", fields["prepared_by"]),

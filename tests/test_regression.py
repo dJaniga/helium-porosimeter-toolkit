@@ -582,6 +582,35 @@ class ExportTest(unittest.TestCase):
         self.assertTrue(any("caliper dimensions" in w
                             for w in docs[0]["warnings"]))
 
+    def test_a_result_file_exports_the_same_numbers(self):
+        """The result echoes the dimensions, so it needs no input file."""
+        from porosimeter.export import build_documents
+
+        data, result, docs = self._documents()
+        from_result = build_documents(result, result, "gasperm")
+        self.assertEqual(from_result[0]["warnings"], [])
+        # Provenance defaults differ (a result carries none); the measured
+        # numbers must not.
+        want, got = self._fields(docs[0]["text"]),             self._fields(from_result[0]["text"])
+        for key in ("id", "length", "diameter", "dimension_unit",
+                    "porosity_fraction", "bulk_density_g_cm3",
+                    "grain_density_g_cm3"):
+            self.assertEqual(got[key], want[key], key)
+
+    def test_propagated_uncertainties_ride_along_as_comments(self):
+        """No gasperm field holds them, so they stay on their own line."""
+        _, result, docs = self._documents()
+        res = result["samples"][0]["results"]
+        lines = {line.split(":")[0]: line
+                 for line in docs[0]["text"].splitlines() if ":" in line}
+        self.assertIn("+/- %.5f (1 sigma)" % (res["u_porosity_pct"] / 100.0),
+                      lines["porosity_fraction"])
+        self.assertIn("+/- %.4f (1 sigma)" % res["u_bulk_density_g_cm3"],
+                      lines["bulk_density_g_cm3"])
+        # A comment, not a key: the gasperm schema is unchanged.
+        self.assertNotIn("u_porosity_fraction",
+                         self._fields(docs[0]["text"]))
+
     def test_provenance_is_carried_through(self):
         def mutate(data):
             data["samples"][0].update(
