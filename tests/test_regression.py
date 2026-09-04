@@ -506,6 +506,129 @@ class TemplateTest(unittest.TestCase):
                 self.assertEqual(s["warnings"], [])
                 self.assertGreater(s["results"]["porosity_pct"], 0.0)
 
+class ExportTest(unittest.TestCase):
+    """The "export" command: one sample file per measured plug."""
+
+    def _documents(self, mutate=None):
+        from porosimeter.export import build_documents
+
+        data = _load("measurement_input.json")
+        if mutate:
+            mutate(data)
+        result = run_measurement(data, GOLDEN)
+        return data, result, build_documents(data, result, "gasperm")
+
+    def _fields(self, text):
+        """Parse the emitted YAML back with the standard library only."""
+        out = {}
+        for line in text.splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            key, _, value = line.partition(":")
+            value = value.split("#")[0].strip()
+            if value.startswith("'"):
+                value = value[1:value.rindex("'")].replace("''", "'")
+            elif value == "null":
+                value = None
+            else:
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+            out[key.strip()] = value
+        return out
+
+    def test_one_document_per_sample_with_the_gasperm_keys(self):
+        data, result, docs = self._documents()
+        self.assertEqual([d["sample_id"] for d in docs],
+                         [s["sample_id"] for s in result["samples"]])
+        self.assertEqual([d["filename"] for d in docs], ["S-01.yaml"])
+        self.assertEqual(sorted(self._fields(docs[0]["text"])), sorted([
+            "id", "description", "lithology", "formation", "well", "depth",
+            "depth_unit", "dimension_unit", "length", "diameter",
+            "length_uncertainty", "diameter_uncertainty",
+            "porosity_fraction", "porosity_method", "grain_density_g_cm3",
+            "bulk_density_g_cm3", "prepared_by", "prepared_on", "notes"]))
+
+    def test_geometry_and_petrophysics_carry_the_measured_values(self):
+        data, result, docs = self._documents()
+        sample, res = data["samples"][0], result["samples"][0]
+        got = self._fields(docs[0]["text"])
+        self.assertEqual(got["dimension_unit"], "cm")
+        self.assertAlmostEqual(got["length"],
+                               sample["bulk_volume"]["length_cm"])
+        self.assertAlmostEqual(got["diameter"],
+                               sample["bulk_volume"]["diameter_cm"])
+        self.assertAlmostEqual(got["porosity_fraction"],
+                               res["results"]["porosity_pct"] / 100.0,
+                               places=5)
+        self.assertAlmostEqual(got["bulk_density_g_cm3"],
+                               res["results"]["bulk_density_g_cm3"])
+        # Grain density is the one value only the porosimeter knows.
+        self.assertAlmostEqual(
+            got["grain_density_g_cm3"],
+            res["dry_mass_g"] / res["core_holder"]["V_g_cm3"], places=3)
+        self.assertEqual(docs[0]["warnings"], [])
+
+    def test_a_given_bulk_volume_leaves_the_geometry_empty_and_warns(self):
+        """gasperm needs the dimensions; a volume alone cannot supply them."""
+        def mutate(data):
+            data["samples"][0]["bulk_volume"] = {"value_cm3": 25.7407}
+
+        _, _, docs = self._documents(mutate)
+        got = self._fields(docs[0]["text"])
+        self.assertIsNone(got["length"])
+        self.assertIsNone(got["diameter"])
+        self.assertTrue(any("caliper dimensions" in w
+                            for w in docs[0]["warnings"]))
+
+    def test_provenance_is_carried_through(self):
+        def mutate(data):
+            data["samples"][0].update(
+                {"well": "W-1", "formation": "Rotliegend", "depth": 1234.5,
+                 "lithology": "sandstone", "notes": "it's dry"})
+
+        _, _, docs = self._documents(mutate)
+        got = self._fields(docs[0]["text"])
+        self.assertEqual(got["well"], "W-1")
+        self.assertEqual(got["formation"], "Rotliegend")
+        self.assertEqual(got["lithology"], "sandstone")
+        self.assertEqual(got["depth"], 1234.5)
+        self.assertEqual(got["depth_unit"], "m")
+        self.assertEqual(got["notes"], "it's dry")
+
+    def test_ids_become_distinct_filenames(self):
+        def mutate(data):
+            # Two ids that differ only in characters a filename cannot keep.
+            twin = dict(data["samples"][0], sample_id="W1_A_12_3")
+            data["samples"][0]["sample_id"] = "W1/A 12:3"
+            data["samples"].append(twin)
+
+        _, _, docs = self._documents(mutate)
+        self.assertEqual([d["filename"] for d in docs],
+                         ["W1_A_12_3.yaml", "W1_A_12_3_2.yaml"])
+        self.assertEqual(self._fields(docs[0]["text"])["id"], "W1/A 12:3")
+
+    def test_unknown_format_rejected(self):
+        from porosimeter.export import build_documents
+
+        data = _load("measurement_input.json")
+        result = run_measurement(data, GOLDEN)
+        with self.assertRaises(InputError):
+            build_documents(data, result, "nope")
+
+    def test_cli_export_writes_files(self):
+        import tempfile
+
+        env = dict(os.environ, PYTHONPATH=SRC)
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = subprocess.run(
+                [sys.executable, "-m", "porosimeter", "export",
+                 os.path.join(GOLDEN, "measurement_input.json"), "-o", tmp],
+                cwd=REPO_ROOT, env=env, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(sorted(os.listdir(tmp)), ["S-01.yaml"])
+
 
 if __name__ == "__main__":
     unittest.main()

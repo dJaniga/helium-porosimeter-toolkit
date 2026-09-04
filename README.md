@@ -28,12 +28,15 @@ python -m porosimeter init examples             # write example input templates
 
 python -m porosimeter calibrate examples/calibration_input.json
 python -m porosimeter measure   examples/measurement_input.json
+python -m porosimeter export    examples/measurement_input.json   # sample files
 ```
 
 After `pip install -e .` the same commands are available through the installed
 `porosimeter` console script (e.g. `porosimeter calibrate ...`).
 
-Each command prints a summary and writes `<name>_result.json`. On Windows use
+`calibrate` and `measure` print a summary and write `<name>_result.json`;
+`export` writes one sample file per plug (see
+[Export to the gas-permeameter toolkit](#export-to-the-gas-permeameter-toolkit)). On Windows use
 `py -3` if plain `python` is not on `PATH`.
 
 ## Daily calibration procedure
@@ -419,6 +422,61 @@ against a volume-matched steel billet. The dominant term is the caliper
 (u(V_T) = 0.21 cm³), not the meter — which is why step 2 is worth the care,
 and why an Archimedes bulk volume is the single best upgrade available to
 this procedure.
+
+## Export to the gas-permeameter toolkit
+
+The same plug usually goes on to a gas permeameter, whose per-plug SAMPLE
+file wants the geometry and the petrophysics this toolkit has just
+measured. Retyping them is how a porosity ends up attached to the wrong
+rock, so `export` writes those files directly:
+
+```bash
+python -m porosimeter export examples/measurement_input.json
+# -> examples/measurement_samples/S-01.yaml, S-02.yaml
+```
+
+Give the **measurement input** file, not the result: the caliper dimensions
+and the provenance keys live there, and the porosity and densities are
+computed on the way out. A result file is also accepted, but it no longer
+knows the dimensions — only the bulk volume they produced — so `length` and
+`diameter` come out `null` with a warning.
+
+| option | meaning |
+| --- | --- |
+| `-o DIR` | output directory (default `<input>_samples`) |
+| `-f FORMAT` | target format; currently only `gasperm` (the default) |
+
+One file per plug, named after `sample_id` (characters a filename cannot
+hold are replaced; the id itself is written unchanged inside the file):
+
+| gasperm field | source |
+| --- | --- |
+| `id` | `sample_id` |
+| `length`, `diameter` | `bulk_volume.length_cm` / `.diameter_cm`, `dimension_unit: cm` |
+| `length_uncertainty`, `diameter_uncertainty` | the caliper uncertainties used in the propagation |
+| `porosity_fraction` | `porosity_pct / 100` |
+| `bulk_density_g_cm3` | dry mass / V_T |
+| `grain_density_g_cm3` | dry mass / the measured `V_g_cm3` |
+| `prepared_by`, `prepared_on` | `meta.operator`, `meta.date` (per-sample keys win) |
+| `description`, `lithology`, `formation`, `well`, `depth`, `depth_unit`, `notes` | optional keys of the same name on the sample |
+
+Those last provenance keys never enter a calculation — add them to a sample
+in the measurement input and they are carried through:
+
+```json
+{
+  "sample_id": "S-01",
+  "well": "W-1", "formation": "Rotliegend", "lithology": "sandstone",
+  "depth": 1234.5, "depth_unit": "m",
+  "dry_mass_g": 58.12,
+  "core_holder": {"P_DV": 9374.0, "P1": 17395.7},
+  "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08}
+}
+```
+
+Note that `grain_density_g_cm3` is the one exported value nothing
+downstream could reconstruct: it comes from `V_g`, which the two holder
+readings measure directly.
 
 ## Traceability
 

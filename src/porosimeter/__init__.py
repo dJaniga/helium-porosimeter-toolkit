@@ -12,7 +12,9 @@ Uzyciu Helowego Miernika Porowatosci o Rozszerzonym Zakresie (HMPoRZ)":
   * porosity of core plugs from two Hassler-holder expansions (spacer
     discs alone, then the same discs plus the core), eqs. (14)-(15),
   * derived results: bulk volume, porosity and bulk density,
-    eqs. (16)-(20).
+    eqs. (16)-(20),
+  * export of the measured plugs as per-sample files for other toolkits
+    (currently the gasperm gas-permeameter SAMPLE format).
 
 Core plugs only; loose material (cuttings, ziarna) is not supported.
 
@@ -21,12 +23,19 @@ All interaction is file based (JSON in, JSON out):
     python -m porosimeter init      [directory]          # write example inputs
     python -m porosimeter calibrate input.json [-o out.json]
     python -m porosimeter measure   input.json [-o out.json]
+    python -m porosimeter export    input.json [-o dir] [-f gasperm]
 
 Requires Python 3.8+, standard library only.
 """
 
 from .calibration import calibrate_cell, run_calibration
 from .errors import InputError
+from .export import (
+    FORMATS,
+    build_documents,
+    render_gasperm,
+    write_documents,
+)
 from .measurement import (
     load_calibration_reference,
     measure_sample,
@@ -58,4 +67,8 @@ __all__ = [
     "load_calibration_reference",
     "measure_sample",
     "run_measurement",
+    "FORMATS",
+    "build_documents",
+    "render_gasperm",
+    "write_documents",
 ]

@@ -91,7 +91,11 @@ SAMPLE_COMMENT = (
     "(required): caliper dimensions of the plug, or {\"value_cm3\": ...} "
     "from an independent method - the readings give the grain volume, so "
     "the pore volume is Vp = V_T - Vg. dry_mass_g (optional): dry mass of "
-    "the plug, used for the bulk density.")
+    "the plug, used for the bulk density. The provenance keys below "
+    "(description, lithology, formation, well, depth, depth_unit, "
+    "prepared_by, prepared_on, notes) never enter a calculation; they are "
+    "carried through to 'python -m porosimeter export', which writes one "
+    "sample file per plug for the gas-permeameter toolkit.")
 
 EXAMPLE_MEASUREMENT = {
     "meta": {
@@ -132,6 +136,11 @@ EXAMPLE_MEASUREMENT = {
             "dry_mass_g": 58.12,
             "core_holder": {"P_DV": 9374.0, "P1": 17395.7},
             "bulk_volume": {"diameter_cm": 2.54, "length_cm": 5.08},
+            "well": "N/A",
+            "formation": "N/A",
+            "lithology": "N/A",
+            "depth": None,
+            "depth_unit": "m",
         },
         {
             "sample_id": "S-02",
