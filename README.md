@@ -446,6 +446,7 @@ volume they produced — but exports the provenance as empty defaults. Only a
 | --- | --- |
 | `-o DIR` | output directory (default `<input>_samples`) |
 | `-f FORMAT` | target format; currently only `gasperm` (the default) |
+| `-u UNIT` | unit for the plug dimensions, `mm` (default) or `cm` |
 
 One file per plug, named after `sample_id` (characters a filename cannot
 hold are replaced; the id itself is written unchanged inside the file):
@@ -453,9 +454,10 @@ hold are replaced; the id itself is written unchanged inside the file):
 | gasperm field | source |
 | --- | --- |
 | `id` | `sample_id` |
-| `length`, `diameter` | `bulk_volume.length_cm` / `.diameter_cm`, `dimension_unit: cm` |
-| `length_uncertainty`, `diameter_uncertainty` | the caliper uncertainties used in the propagation |
-| `porosity_fraction` | `porosity_pct / 100`, with `u_porosity_pct / 100` as a trailing `+/-` comment |
+| `length`, `diameter` | `bulk_volume.length_cm` / `.diameter_cm`, converted to the declared `dimension_unit` (mm by default) |
+| `length_uncertainty`, `diameter_uncertainty` | the caliper uncertainties used in the propagation, same unit |
+| `porosity_fraction` | `porosity_pct / 100` |
+| `porosity_uncertainty` | `u_porosity_pct / 100` — a fraction, like the porosity itself |
 | `bulk_density_g_cm3` | dry mass / V_T, with `u_bulk_density_g_cm3` as a trailing comment |
 | `grain_density_g_cm3` | dry mass / the measured `V_g_cm3` |
 | `prepared_by`, `prepared_on` | `meta.operator`, `meta.date` (per-sample keys win) |
@@ -478,12 +480,13 @@ in the measurement input and they are carried through:
 Two things worth knowing about the exported file. `grain_density_g_cm3` is
 the one value nothing downstream could reconstruct: it comes from `V_g`,
 which the two holder readings measure directly. And the propagated 1σ
-values have no field in the gasperm schema, so they are written as comments
-on the line they belong to — the uncertainty stays with the number without
-adding a key the other toolkit would have to know about:
+uncertainties are written in the units the receiving field expects —
+`porosity_uncertainty` as a fraction, not a percentage — while the
+bulk-density uncertainty, which has no field, rides along as a comment:
 
 ```yaml
-porosity_fraction: 0.15003                  # +/- 0.00692 (1 sigma)
+porosity_fraction: 0.15003
+porosity_uncertainty: 0.00692               # 1 sigma, same units as porosity_fraction
 bulk_density_g_cm3: 2.2579                  # +/- 0.0183 (1 sigma)
 ```
 

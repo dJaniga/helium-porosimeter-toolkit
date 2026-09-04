@@ -18,8 +18,11 @@ the provenance and the input uncertainties live there, and the derived
 porosity and densities are computed on the way out.  A measurement *result*
 file works just as well for the numbers - it echoes the caliper dimensions
 next to the volume they produced - but it carries no provenance keys.
-Either way the propagated 1-sigma values ride along as comments, since the
-gasperm schema has no field for them.
+The plug dimensions are written in millimetres by default (the toolkit
+works in cm; gasperm declares its own "dimension_unit"), unconverted and
+unrounded.  The porosity uncertainty has its own gasperm field and is
+written there as a fraction; the bulk-density uncertainty has none, so it
+rides along as a comment.
 """
 
 import os
@@ -30,6 +33,12 @@ from .constants import DEFAULT_MEAS_UNCERTAINTIES
 from .errors import InputError
 
 FORMATS = ("gasperm",)
+
+# The toolkit works in cm; gasperm carries its own "dimension_unit", so the
+# lengths are converted on the way out.  Values are written in full - the
+# conversion is exact and nothing is rounded away.
+DIMENSION_UNITS = {"mm": 10.0, "cm": 1.0}
+DEFAULT_DIMENSION_UNIT = "mm"
 
 # Sample keys that are provenance only: copied through to the exported file
 # without ever touching a calculation.  "depth_unit" is the unit of "depth".
@@ -46,7 +55,10 @@ _PLAIN = re.compile(r"^[A-Za-z_][A-Za-z0-9_ ./+-]*$")
 def _fmt_number(value):
     if isinstance(value, int) and not isinstance(value, bool):
         return str(value)
-    text = "%.6f" % value
+    # Nine decimals keeps every digit a caliper or a balance can produce,
+    # in mm as well as cm, while dropping the binary dust a unit
+    # conversion leaves behind (25.400000000000002 -> 25.4).
+    text = "%.9f" % value
     text = text.rstrip("0").rstrip(".")
     return text or "0"
 
@@ -107,12 +119,13 @@ def _geometry(sample, result):
         "directly) - fill in length and diameter before running gasperm")
 
 
-def gasperm_fields(sample, result, data):
+def gasperm_fields(sample, result, data, unit=DEFAULT_DIMENSION_UNIT):
     """
     Map one measured plug onto the gasperm SAMPLE fields.  `sample` is its
     measurement input record (empty when exporting from a result file),
-    `result` the matching entry of the measurement result.  Returns
-    (fields, warnings).
+    `result` the matching entry of the measurement result.  Lengths are
+    written in `unit`, which the file declares as "dimension_unit".
+    Returns (fields, warnings).
     """
     warnings = []
     meta = data.get("meta", {}) or {}
@@ -121,6 +134,11 @@ def gasperm_fields(sample, result, data):
     length, diameter, geom_warning = _geometry(sample, result)
     if geom_warning:
         warnings.append(geom_warning)
+
+    per_cm = DIMENSION_UNITS[unit]
+
+    def in_unit(value_cm):
+        return None if value_cm is None else float(value_cm) * per_cm
 
     def provenance(key, default=""):
         value = sample.get(key)
@@ -131,7 +149,7 @@ def gasperm_fields(sample, result, data):
     # can recover from the porosity alone.
     mass = result.get("dry_mass_g")
     V_g = (result.get("core_holder") or {}).get("V_g_cm3")
-    grain_density = ""
+    grain_density = None
     if mass is not None and V_g is not None:
         if V_g > 0:
             grain_density = round(float(mass) / float(V_g), 4)
@@ -153,23 +171,24 @@ def gasperm_fields(sample, result, data):
         "well": provenance("well", "N/A"),
         "depth": sample.get("depth"),
         "depth_unit": provenance("depth_unit", "m"),
-        "dimension_unit": "cm",
-        "length": length,
-        "diameter": diameter,
-        "length_uncertainty": float(u["length_cm"]),
-        "diameter_uncertainty": float(u["diameter_cm"]),
+        "dimension_unit": unit,
+        "length": in_unit(length),
+        "diameter": in_unit(diameter),
+        "length_uncertainty": in_unit(u["length_cm"]),
+        "diameter_uncertainty": in_unit(u["diameter_cm"]),
         "porosity_fraction": (None if porosity is None
                               else round(porosity / 100.0, 5)),
-        # The propagated 1-sigma values have no field in the gasperm schema,
-        # so they ride along as comments on the line they belong to: the
-        # number stays traceable without inventing a key its loader would
-        # have to know about.
-        "u_porosity_fraction": (None if u_porosity is None
-                                else round(u_porosity / 100.0, 5)),
-        "u_bulk_density_g_cm3": derived.get("u_bulk_density_g_cm3"),
+        # gasperm's porosity_uncertainty is a fraction, like the porosity
+        # itself - the toolkit propagates a percentage, so it is divided by
+        # 100 here and not somewhere downstream.
+        "porosity_uncertainty": (None if u_porosity is None
+                                 else round(u_porosity / 100.0, 5)),
         "porosity_method": "Helium porosity",
         "grain_density_g_cm3": grain_density,
-        "bulk_density_g_cm3": derived.get("bulk_density_g_cm3", ""),
+        "bulk_density_g_cm3": derived.get("bulk_density_g_cm3"),
+        # No field holds the density uncertainty, so it rides along as a
+        # comment on the line it belongs to.
+        "u_bulk_density_g_cm3": derived.get("u_bulk_density_g_cm3"),
         "prepared_by": (sample.get("prepared_by")
                         or meta.get("operator") or ""),
         "prepared_on": sample.get("prepared_on") or meta.get("date"),
@@ -182,6 +201,7 @@ def gasperm_fields(sample, result, data):
 # ---------------------------------------------------------------------------
 def render_gasperm(fields, source=None):
     """The commented YAML document for one plug."""
+    unit = fields["dimension_unit"]
     origin = "helium-porosimeter-toolkit"
     if source:
         origin += ", from %s" % source
@@ -211,18 +231,19 @@ def render_gasperm(fields, source=None):
         "# cm internally. Area goes as diameter^2, so the diameter",
         "# uncertainty enters the budget doubled.",
         _line("dimension_unit", fields["dimension_unit"], "cm, ft, in, m, mm"),
-        _line("length", fields["length"], "caliper, cm"),
-        _line("diameter", fields["diameter"], "caliper, cm"),
+        _line("length", fields["length"], "caliper, %s" % unit),
+        _line("diameter", fields["diameter"], "caliper, %s" % unit),
         _line("length_uncertainty", fields["length_uncertainty"],
-              "standard uncertainty, cm"),
+              "standard uncertainty, %s (caliper)" % unit),
         _line("diameter_uncertainty", fields["diameter_uncertainty"],
-              "standard uncertainty, cm -- counts double"),
+              "standard uncertainty, %s -- counts double" % unit),
         "",
         "# Petrophysics. Informational; not used by the Darcy calc.",
-        "# The +/- values are standard (1-sigma) uncertainties propagated",
-        "# from the meter, balance, caliper and the calibration constants.",
-        _line("porosity_fraction", fields["porosity_fraction"],
-              _plus_minus(fields["u_porosity_fraction"])),
+        "# The uncertainties are standard (1-sigma) values propagated from",
+        "# the meter, balance, caliper and the calibration constants.",
+        _line("porosity_fraction", fields["porosity_fraction"]),
+        _line("porosity_uncertainty", fields["porosity_uncertainty"],
+              "1 sigma, same units as porosity_fraction"),
         _line("porosity_method", fields["porosity_method"],
               "helium pycnometry, MICP, image analysis, ..."),
         _line("grain_density_g_cm3", fields["grain_density_g_cm3"],
@@ -250,7 +271,8 @@ def _filename(sample_id, taken):
     return name
 
 
-def build_documents(data, result, fmt="gasperm", source=None):
+def build_documents(data, result, fmt="gasperm", source=None,
+                    unit=DEFAULT_DIMENSION_UNIT):
     """
     Render every measured plug.  Returns a list of
     {"filename", "sample_id", "text", "warnings"} in input order.
@@ -258,6 +280,9 @@ def build_documents(data, result, fmt="gasperm", source=None):
     if fmt not in FORMATS:
         raise InputError('Unknown export format "%s" (known: %s).'
                          % (fmt, ", ".join(FORMATS)))
+    if unit not in DIMENSION_UNITS:
+        raise InputError('Unknown dimension unit "%s" (known: %s).'
+                         % (unit, ", ".join(sorted(DIMENSION_UNITS))))
     results = result.get("samples") or []
     if not results:
         raise InputError("Nothing to export: the measurement has no samples.")
@@ -269,7 +294,7 @@ def build_documents(data, result, fmt="gasperm", source=None):
 
     documents, taken = [], set()
     for sample, res in zip(raw, results):
-        fields, warnings = gasperm_fields(sample, res, data)
+        fields, warnings = gasperm_fields(sample, res, data, unit)
         documents.append({
             "filename": _filename(fields["id"], taken),
             "sample_id": fields["id"],

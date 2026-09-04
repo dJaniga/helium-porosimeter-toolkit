@@ -11,7 +11,13 @@ import sys
 from .calibration import run_calibration
 from .errors import InputError
 from .examples import write_examples
-from .export import FORMATS, build_documents, write_documents
+from .export import (
+    DEFAULT_DIMENSION_UNIT,
+    DIMENSION_UNITS,
+    FORMATS,
+    build_documents,
+    write_documents,
+)
 from .measurement import run_measurement
 from .reporting import print_summary
 
@@ -51,7 +57,7 @@ def run_export(args):
         result = run_measurement(data, base_dir)
 
     documents = build_documents(data, result, args.format,
-                                os.path.basename(args.input))
+                                os.path.basename(args.input), args.unit)
     directory = args.output or default_export_dir(args.input)
     paths = write_documents(documents, directory)
     for doc, path in zip(documents, paths):
@@ -96,6 +102,11 @@ def main(argv=None):
     p_export.add_argument(
         "-f", "--format", choices=FORMATS, default=FORMATS[0],
         help="target format (default: %s)" % FORMATS[0])
+    p_export.add_argument(
+        "-u", "--unit", choices=sorted(DIMENSION_UNITS),
+        default=DEFAULT_DIMENSION_UNIT,
+        help="unit for the plug dimensions, written into the file as "
+             "\"dimension_unit\" (default: %s)" % DEFAULT_DIMENSION_UNIT)
 
     args = parser.parse_args(argv)
 

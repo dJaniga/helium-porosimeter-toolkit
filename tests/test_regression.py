@@ -547,18 +547,19 @@ class ExportTest(unittest.TestCase):
             "id", "description", "lithology", "formation", "well", "depth",
             "depth_unit", "dimension_unit", "length", "diameter",
             "length_uncertainty", "diameter_uncertainty",
-            "porosity_fraction", "porosity_method", "grain_density_g_cm3",
-            "bulk_density_g_cm3", "prepared_by", "prepared_on", "notes"]))
+            "porosity_fraction", "porosity_uncertainty", "porosity_method",
+            "grain_density_g_cm3", "bulk_density_g_cm3", "prepared_by",
+            "prepared_on", "notes"]))
 
     def test_geometry_and_petrophysics_carry_the_measured_values(self):
         data, result, docs = self._documents()
         sample, res = data["samples"][0], result["samples"][0]
         got = self._fields(docs[0]["text"])
-        self.assertEqual(got["dimension_unit"], "cm")
+        self.assertEqual(got["dimension_unit"], "mm")
         self.assertAlmostEqual(got["length"],
-                               sample["bulk_volume"]["length_cm"])
+                               sample["bulk_volume"]["length_cm"] * 10.0)
         self.assertAlmostEqual(got["diameter"],
-                               sample["bulk_volume"]["diameter_cm"])
+                               sample["bulk_volume"]["diameter_cm"] * 10.0)
         self.assertAlmostEqual(got["porosity_fraction"],
                                res["results"]["porosity_pct"] / 100.0,
                                places=5)
@@ -582,6 +583,41 @@ class ExportTest(unittest.TestCase):
         self.assertTrue(any("caliper dimensions" in w
                             for w in docs[0]["warnings"]))
 
+    def test_dimensions_are_written_in_the_declared_unit(self):
+        """mm by default, cm on request; the same plug either way."""
+        from porosimeter.export import build_documents
+
+        data = _load("measurement_input.json")
+        result = run_measurement(data, GOLDEN)
+        docs = {unit: build_documents(data, result, "gasperm", None, unit)
+                for unit in ("mm", "cm")}
+        mm = self._fields(docs["mm"][0]["text"])
+        cm = self._fields(docs["cm"][0]["text"])
+        self.assertEqual((mm["dimension_unit"], cm["dimension_unit"]),
+                         ("mm", "cm"))
+        for key in ("length", "diameter", "length_uncertainty",
+                    "diameter_uncertainty"):
+            self.assertAlmostEqual(mm[key], cm[key] * 10.0, places=9)
+
+    def test_the_conversion_keeps_every_digit(self):
+        """A converted length must not pick up float dust or lose a digit."""
+        def mutate(data):
+            data["samples"][0]["bulk_volume"] = {"diameter_cm": 3.7503,
+                                                 "length_cm": 3.803}
+
+        _, _, docs = self._documents(mutate)
+        text = docs[0]["text"]
+        self.assertIn("length: 38.03 ", text)
+        self.assertIn("diameter: 37.503 ", text)
+
+    def test_unknown_dimension_unit_rejected(self):
+        from porosimeter.export import build_documents
+
+        data = _load("measurement_input.json")
+        result = run_measurement(data, GOLDEN)
+        with self.assertRaises(InputError):
+            build_documents(data, result, "gasperm", None, "inches")
+
     def test_a_result_file_exports_the_same_numbers(self):
         """The result echoes the dimensions, so it needs no input file."""
         from porosimeter.export import build_documents
@@ -593,22 +629,29 @@ class ExportTest(unittest.TestCase):
         # numbers must not.
         want, got = self._fields(docs[0]["text"]),             self._fields(from_result[0]["text"])
         for key in ("id", "length", "diameter", "dimension_unit",
-                    "porosity_fraction", "bulk_density_g_cm3",
-                    "grain_density_g_cm3"):
+                    "porosity_fraction", "porosity_uncertainty",
+                    "bulk_density_g_cm3", "grain_density_g_cm3"):
             self.assertEqual(got[key], want[key], key)
 
-    def test_propagated_uncertainties_ride_along_as_comments(self):
-        """No gasperm field holds them, so they stay on their own line."""
+    def test_porosity_uncertainty_is_a_fraction_like_the_porosity(self):
+        """gasperm wants a fraction; the toolkit propagates a percentage."""
+        _, result, docs = self._documents()
+        res = result["samples"][0]["results"]
+        got = self._fields(docs[0]["text"])
+        self.assertAlmostEqual(got["porosity_uncertainty"],
+                               res["u_porosity_pct"] / 100.0, places=5)
+        self.assertLess(got["porosity_uncertainty"], got["porosity_fraction"])
+
+    def test_the_density_uncertainty_rides_along_as_a_comment(self):
+        """No gasperm field holds it, so it stays on its own line."""
         _, result, docs = self._documents()
         res = result["samples"][0]["results"]
         lines = {line.split(":")[0]: line
                  for line in docs[0]["text"].splitlines() if ":" in line}
-        self.assertIn("+/- %.5f (1 sigma)" % (res["u_porosity_pct"] / 100.0),
-                      lines["porosity_fraction"])
         self.assertIn("+/- %.4f (1 sigma)" % res["u_bulk_density_g_cm3"],
                       lines["bulk_density_g_cm3"])
         # A comment, not a key: the gasperm schema is unchanged.
-        self.assertNotIn("u_porosity_fraction",
+        self.assertNotIn("u_bulk_density_g_cm3",
                          self._fields(docs[0]["text"]))
 
     def test_provenance_is_carried_through(self):
