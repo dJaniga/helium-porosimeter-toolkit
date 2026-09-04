@@ -2,25 +2,42 @@
 Human-readable console summary of a calibration or measurement result.
 """
 
+from .physics import QUADRATIC
+
+
+def _cell_constants(cell):
+    """The fitted constants of one cell, formatted for one summary line."""
+    unc = cell.get("uncertainty", {})
+    parts = ["Vr = %10.4f +/- %.4f cm3"
+             % (cell["Vr_cm3"], unc.get("u_Vr_cm3", 0.0))]
+    if "V_LIN_cm3" in cell:
+        parts.append("V_LIN = %9.6f +/- %.6f cm3"
+                     % (cell["V_LIN_cm3"], unc.get("u_V_LIN_cm3", 0.0)))
+    if "D" in cell:
+        parts.append("D = %11.8f +/- %.8f" % (cell["D"], unc.get("u_D", 0.0)))
+    parts.append("V_D = %8.4f cm3" % cell["V_D_cm3"])
+    return "   ".join(parts)
+
 
 def print_summary(result):
     if result["type"] == "calibration_result":
         print("Calibration  (R = %.1f meter counts)" % result["R"])
         for c in result["cells"]:
-            unc = c.get("uncertainty", {})
-            print("  cell %-5s Vr = %10.4f +/- %.4f cm3   "
-                  "V_LIN = %9.6f +/- %.6f cm3   V_D = %8.4f cm3"
-                  % (c["cell"], c["Vr_cm3"], unc.get("u_Vr_cm3", 0.0),
-                     c["V_LIN_cm3"], unc.get("u_V_LIN_cm3", 0.0),
-                     c["V_D_cm3"]))
+            model = c.get("model", QUADRATIC)
+            label = "%s [%s]" % (c["cell"], model)
+            print("  cell %-22s %s" % (label, _cell_constants(c)))
             for w in c["warnings"]:
                 print("    WARNING: %s" % w)
     else:
-        print("Measurement  (calibration: %s, R = %.1f, Vr = %.4f, "
-              "V_LIN = %.6f)" % (result["calibration"]["source"],
-                                 result["calibration"]["R"],
-                                 result["calibration"]["Vr_cm3"],
-                                 result["calibration"]["V_LIN_cm3"]))
+        cal = result["calibration"]
+        constants = ["Vr = %.4f" % cal["Vr_cm3"]]
+        if "V_LIN_cm3" in cal:
+            constants.append("V_LIN = %.6f" % cal["V_LIN_cm3"])
+        if "D" in cal:
+            constants.append("D = %.8f" % cal["D"])
+        print("Measurement  (calibration: %s [%s], R = %.1f, %s)"
+              % (cal["source"], cal.get("model", QUADRATIC), cal["R"],
+                 ", ".join(constants)))
         for s in result["samples"]:
             r = s["results"]
 
