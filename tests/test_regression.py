@@ -12,7 +12,9 @@ The measurement fixture was later retargeted at the core-plug procedure
 this toolkit implements (two Hassler-holder expansions, spacer discs alone
 then discs plus the core).  Its V_g_cm3 = 21.879 is the untouched
 pre-refactor output for that reading pair; Vp, porosity and bulk density
-are derived from it and the caliper bulk volume.
+are derived from it and the caliper bulk volume.  The plug's caliper
+dimensions were later added to the recorded results; every number in the
+golden files is still the untouched original.
 
 Only the volatile ``generated`` timestamp is stripped before comparison.
 
@@ -162,6 +164,36 @@ class HolderContractTest(unittest.TestCase):
                 "bulk_volume": {"value_cm3": V_T}})
             self.assertAlmostEqual(s["core_holder"]["V_g_cm3"], Vg_true,
                                    places=3)
+
+    def test_plug_dimensions_are_reported(self):
+        """The caliper dimensions belong on the record card, in cm."""
+        import math
+
+        s = self._run({"sample_id": "X", "core_holder": dict(self.READINGS),
+                       "bulk_volume": dict(self.BULK)})
+        r = s["results"]
+        self.assertEqual(r["diameter_cm"], self.BULK["diameter_cm"])
+        self.assertEqual(r["length_cm"], self.BULK["length_cm"])
+        self.assertAlmostEqual(
+            r["V_T_cm3"],
+            math.pi * r["diameter_cm"] ** 2 / 4.0 * r["length_cm"], places=4)
+
+    def test_dimensions_absent_when_only_a_bulk_volume_is_given(self):
+        s = self._run({"sample_id": "X", "core_holder": dict(self.READINGS),
+                       "bulk_volume": {"value_cm3": 25.7407}})
+        self.assertNotIn("diameter_cm", s["results"])
+        self.assertNotIn("length_cm", s["results"])
+
+    def test_dimensions_recorded_alongside_a_given_bulk_volume(self):
+        """V_T still comes from value_cm3; the plug is recorded anyway."""
+        s = self._run({"sample_id": "X", "core_holder": dict(self.READINGS),
+                       "bulk_volume": {"value_cm3": 24.0,
+                                       "diameter_cm": 2.54,
+                                       "length_cm": 5.08}})
+        self.assertEqual(s["results"]["V_T_method"], "given")
+        self.assertEqual(s["results"]["V_T_cm3"], 24.0)
+        self.assertEqual(s["results"]["diameter_cm"], 2.54)
+        self.assertEqual(s["results"]["length_cm"], 5.08)
 
     def test_dry_mass_only_affects_bulk_density(self):
         with_mass = self._run({

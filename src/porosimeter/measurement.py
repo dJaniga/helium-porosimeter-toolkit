@@ -150,7 +150,8 @@ def _read_bulk_volume(sample, sid, vals, u, u_in):
     Total (bulk) volume of the plug, required: these two readings measure
     the grain volume, so the pore volume is Vp = V_T - Vg.  Either caliper
     dimensions or a ready-made value.  Fills `vals` / `u`, returns the
-    method name.
+    method name.  The dimensions themselves are echoed into the result by
+    `_plug_dimensions`, so they stay on the record card either way.
     """
     bulk = sample.get("bulk_volume")
     if bulk is None:
@@ -178,6 +179,26 @@ def _read_bulk_volume(sample, sid, vals, u, u_in):
     u["diameter"] = float(u_in["diameter_cm"])
     u["length"] = float(u_in["length_cm"])
     return "cylinder geometry"
+
+
+def _plug_dimensions(sample, sid):
+    """
+    The caliper dimensions of the plug, for the record card.  They are what
+    the cylinder-geometry route measures V_T from, and they are worth
+    recording next to it even when V_T came from an independent method - so
+    they are echoed whenever the input carries them.
+    """
+    bulk = sample.get("bulk_volume") or {}
+    dims = {}
+    for key in ("diameter_cm", "length_cm"):
+        if bulk.get(key) is None:
+            continue
+        try:
+            dims[key] = float(bulk[key])
+        except (TypeError, ValueError):
+            raise InputError(
+                'Sample "%s": "bulk_volume.%s" must be numeric.' % (sid, key))
+    return dims
 
 
 def measure_sample(sample, cal, offset=0.0, unc_file=None):
@@ -272,6 +293,8 @@ def measure_sample(sample, cal, offset=0.0, unc_file=None):
                              "V_g_cm3": round(y0["V_g_cm3"], 4)}
     derived = {}
     put(derived, "V_p_cm3", 4)
+    # The plug as it was measured, immediately before the volume it gives.
+    derived.update(_plug_dimensions(sample, sid))
     put(derived, "V_T_cm3", 4)
     derived["V_T_method"] = vt_method
     put(derived, "porosity_pct", 3)
