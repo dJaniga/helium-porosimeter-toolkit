@@ -14,6 +14,9 @@ into the unknown volume, and the equilibrium pressure `P` gives
 V = -V_D + Vr·x + V_LIN·x²,   x = (R − P) / P
 ```
 
+A multi-point calibration can be fitted with a different model — see
+[Choosing the calibration model](#choosing-the-calibration-model).
+
 All calculations follow the original Corexport operating manual (cat. no. 123)
 and were cross-checked against the manufacturer's HP-41 reference program
 (manual Annex B).
@@ -216,8 +219,64 @@ of `Vr` (default 1 %, override in `tolerances`), a warning flags the likely
 misread pressure or wrong void volume. **This is the check worth watching** —
 it tests the data against itself rather than against a factory constant.
 
+### Choosing the calibration model
+
+The `configurations` fit takes a `model`, which decides the shape fitted to
+the points. Set it at the top level of the calibration file (the default for
+every cell) and/or inside a single cell object (overrides the file):
+
+```jsonc
+{
+  "reference_pressure": {"R": 19836.0},
+  "model": "harmonic",
+  "cells": [
+    {"cell": "C", "configurations": [ /* ... */ ]},
+    {"cell": "A", "model": "linear", "configurations": [ /* ... */ ]}
+  ]
+}
+```
+
+| `model` | fitted curve | parameters | min. points |
+|---|---|---|---|
+| `quadratic` *(default)* | `V = Vr·x + V_LIN·x² − V_D` | `Vr`, `V_LIN`, `V_D` | 3 |
+| `linear` | `V = Vr·x − V_D` | `Vr`, `V_D` | 2 |
+| `harmonic` | `V = Vr·x/(1 + D·x) − V_D` | `Vr`, `D`, `V_D` | 3 |
+
+Read as an **apparent reference volume** `Vr(x) = (V + V_D)/x`, the three are
+`Vr + V_LIN·x`, a constant `Vr`, and the harmonic decline `Vr/(1 + D·x)`.
+
+* **`quadratic`** is the manual's equation (4) and stays the default; it is
+  what the factory `V_LIN` belongs to. Use it unless you have a reason not to.
+* **`linear`** is pure Boyle's law with no linearity correction. It needs only
+  two configurations, so it is the model to reach for when you cannot open the
+  holder wide enough to pin `V_LIN` down — a `V_LIN` fitted over a narrow
+  pressure span is worse than no `V_LIN` at all. It is also the honest choice
+  for a quick check between full calibrations.
+* **`harmonic`** replaces the quadratic's unbounded upward curvature with a
+  saturating one, so it extrapolates far more safely beyond the calibrated
+  span. `D` is a decline constant per unit expansion ratio; it is small and
+  normally **negative** for a cell whose apparent volume grows with expansion
+  (the usual case), because to second order `V_LIN = −Vr·D`. That equivalent
+  `−Vr·D` is what the daily factory-`V_LIN` check compares against, and it is
+  reported as `V_LIN_equivalent_cm3`.
+
+The fitted model is named in each cell of the result and — this is the point —
+**every measurement that reads that calibration reduces its readings with the
+same model**:
+
+```jsonc
+{ "cell": "C", "model": "harmonic",
+  "Vr_cm3": 22.2263, "D": -0.007, "V_D_cm3": 3.0,
+  "uncertainty": {"u_Vr_cm3": 0.055, "u_D": 0.0032, "cov_Vr_D": 0.000175, "...": "..."},
+  "factory_comparison": {"V_LIN_equivalent_cm3": 0.155584, "...": "..."} }
+```
+
+The `linear` model has no second-order term, so its result carries no
+`V_LIN_cm3` and the factory `V_LIN` check is skipped (`Vr` is still checked).
+
 The classic two-disc shape is still accepted for a cell, as the three-point
-special case:
+special case. It is the manual's closed-form solution and is therefore always
+quadratic — asking for another model with it is an error:
 
 ```jsonc
 {
@@ -323,6 +382,15 @@ python -m porosimeter measure examples/measurement_input.json
   caliper reads high and would bias porosity low. The readings give Vg, so
   without V_T there is no pore volume.
 - `dry_mass_g` — optional; used for the bulk density only.
+- `calibration` — the constants to reduce with, and the **model** they were
+  fitted with. Pointing at a `calibrate` result file carries the model over
+  automatically, so a `harmonic` or `linear` calibration is never silently
+  re-read as the quadratic default. Inline, name it alongside the
+  constants — `{"R": 19836.0, "model": "harmonic", "Vr_cm3": 22.2263,
+  "D": -0.007}` — and omit it for the quadratic default,
+  `{"R": 19836.0, "Vr_cm3": 22.2263, "V_LIN_cm3": 0.155776}`. `V_D` is not
+  needed either way: it cancels in `Vg = V(P_DV) − V(P1)`. A non-default
+  model is echoed in the result's `calibration` block.
 
 ### Results
 

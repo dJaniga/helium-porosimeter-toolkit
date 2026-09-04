@@ -31,6 +31,18 @@ EXAMPLE_CALIBRATION = {
                      "R = T.S. x V x 100 psig (manual section 4.2)."),
     },
     "meter_offset": 0.0,
+    "model": "quadratic",
+    "_model_comment": (
+        "Model fitted to the multi-point 'configurations' below, and the "
+        "one every measurement based on this calibration will use: "
+        "'quadratic' V = Vr*x + V_LIN*x^2 - V_D (the manual's equation, "
+        "default, 3+ points), 'linear' V = Vr*x - V_D (pure Boyle's law, "
+        "no linearity correction, 2+ points), or 'harmonic' "
+        "V = Vr*x/(1 + D*x) - V_D (harmonic decline of the apparent "
+        "reference volume, 3+ points; D is small and normally negative, "
+        "with -Vr*D playing the role of V_LIN). Override per cell with a "
+        "'model' key inside the cell object. The legacy two-disc shape is "
+        "the manual's closed form and is always quadratic."),
     "tolerances": {"Vr_pct": 1.0, "V_LIN_pct": 10.0},
     "uncertainties": {
         "pressure": 2.0,
@@ -91,8 +103,14 @@ EXAMPLE_MEASUREMENT = {
         "file": "calibration_result.json",
         "cell": "C",
         "_comment": ("Points at the output of 'python -m porosimeter "
-                     "calibrate'. Inline alternative: {\"R\": 19836.0, "
-                     "\"Vr_cm3\": 22.2263, \"V_LIN_cm3\": 0.155776}."),
+                     "calibrate'. The model fitted there is read from the "
+                     "file and used to reduce these samples, so a harmonic "
+                     "or linear calibration is never re-interpreted as the "
+                     "quadratic default. Inline alternative: {\"R\": "
+                     "19836.0, \"Vr_cm3\": 22.2263, \"V_LIN_cm3\": "
+                     "0.155776}, or with a model: {\"R\": 19836.0, "
+                     "\"model\": \"harmonic\", \"Vr_cm3\": 22.2263, "
+                     "\"D\": -0.007}."),
     },
     "meter_offset": 0.0,
     "uncertainties": {

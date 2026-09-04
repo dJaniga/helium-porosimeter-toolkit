@@ -262,6 +262,197 @@ class MultiPointCalibrationTest(unittest.TestCase):
                 {"P": 17000.0, "V": 6.0}]})
 
 
+class CalibrationModelTest(unittest.TestCase):
+    """Model selection for the multi-point ("configurations") calibration."""
+
+    R = 19836.0
+    Vr, D, V_D = 22.2263, -0.007, 3.0
+
+    def _calibrate(self, cell, model=None):
+        data = {"reference_pressure": {"R": self.R}, "cells": [cell]}
+        if model is not None:
+            data["model"] = model
+        return run_calibration(data)
+
+    def _harmonic_points(self, voids):
+        """Pressures that lie exactly on V = Vr*x/(1 + D*x) - V_D."""
+        pts = []
+        for V in voids:
+            w = V + self.V_D
+            x = w / (self.Vr - w * self.D)
+            pts.append({"P": self.R / (1.0 + x), "V": V})
+        return pts
+
+    def _linear_points(self, voids):
+        """Pressures that lie exactly on V = Vr*x - V_D."""
+        return [{"P": self.R / (1.0 + (V + self.V_D) / self.Vr), "V": V}
+                for V in voids]
+
+    def test_default_is_the_quadratic_manual_model(self):
+        result = self._calibrate(
+            {"cell": "C",
+             "configurations": self._harmonic_points([0.0, 3.4, 6.8])})
+        c = result["cells"][0]
+        self.assertEqual(c["model"], "quadratic")
+        self.assertIn("V_LIN_cm3", c)
+        self.assertNotIn("D", c)
+
+    def test_harmonic_model_recovers_its_own_curve(self):
+        c = self._calibrate(
+            {"cell": "C",
+             "configurations": self._harmonic_points([0.0, 3.4, 6.8, 9.5,
+                                                      12.3])},
+            model="harmonic")["cells"][0]
+        self.assertEqual(c["model"], "harmonic")
+        self.assertAlmostEqual(c["Vr_cm3"], self.Vr, places=4)
+        self.assertAlmostEqual(c["D"], self.D, places=6)
+        self.assertAlmostEqual(c["V_D_cm3"], self.V_D, places=4)
+        self.assertLess(c["fit"]["max_residual_cm3"], 1e-6)
+        self.assertIn("u_D", c["uncertainty"])
+        self.assertIn("cov_Vr_D", c["uncertainty"])
+        self.assertNotIn("V_LIN_cm3", c)
+        # -Vr*D is the second-order coefficient comparable with factory V_LIN.
+        self.assertAlmostEqual(
+            c["factory_comparison"]["V_LIN_equivalent_cm3"],
+            -self.Vr * self.D, places=5)
+
+    def test_harmonic_exact_with_three_points(self):
+        """Three points determine the three harmonic parameters exactly."""
+        c = self._calibrate(
+            {"cell": "C",
+             "configurations": self._harmonic_points([0.0, 3.4, 6.8])},
+            model="harmonic")["cells"][0]
+        self.assertAlmostEqual(c["Vr_cm3"], self.Vr, places=4)
+        self.assertAlmostEqual(c["D"], self.D, places=6)
+        self.assertLess(c["fit"]["max_residual_cm3"], 1e-6)
+
+    def test_linear_model_needs_only_two_points(self):
+        two = self._linear_points([0.0, 8.0])
+        c = self._calibrate({"cell": "C", "configurations": two},
+                            model="linear")["cells"][0]
+        self.assertEqual(c["model"], "linear")
+        self.assertAlmostEqual(c["Vr_cm3"], self.Vr, places=4)
+        self.assertAlmostEqual(c["V_D_cm3"], self.V_D, places=4)
+        self.assertNotIn("V_LIN_cm3", c)
+        # No second-order term, so no factory V_LIN comparison to make.
+        self.assertNotIn("V_LIN_deviation_pct", c["factory_comparison"])
+        self.assertEqual(c["warnings"], [])
+
+    def test_quadratic_still_needs_three_points(self):
+        two = self._linear_points([0.0, 8.0])
+        with self.assertRaises(InputError):
+            self._calibrate({"cell": "C", "configurations": two})
+
+    def test_per_cell_model_overrides_the_file_default(self):
+        data = {"reference_pressure": {"R": self.R}, "model": "harmonic",
+                "cells": [
+                    {"cell": "C",
+                     "configurations": self._harmonic_points([0.0, 3.4, 6.8])},
+                    {"cell": "A", "model": "linear",
+                     "configurations": self._linear_points([0.0, 4.0, 8.0])},
+                ]}
+        cells = run_calibration(data)["cells"]
+        self.assertEqual([c["model"] for c in cells], ["harmonic", "linear"])
+
+    def test_unknown_model_rejected(self):
+        with self.assertRaises(InputError):
+            self._calibrate({"cell": "C",
+                             "configurations": self._harmonic_points(
+                                 [0.0, 3.4, 6.8])}, model="hyperbolic")
+
+    def test_legacy_two_disc_shape_rejects_a_non_quadratic_model(self):
+        """The manual's closed form is quadratic; ask for points instead."""
+        with self.assertRaises(InputError):
+            self._calibrate({
+                "cell": "A",
+                "disc_volumes_cm3": {"V0": 0.0, "V1": 3.398, "V2": 6.768},
+                "pressures": {"P_DV": 17872.7, "P1": 13967.4, "P2": 11486.7},
+            }, model="harmonic")
+
+
+class MeasurementModelTest(unittest.TestCase):
+    """A measurement must reduce its readings with the calibrated model."""
+
+    R = 19836.0
+    READINGS = {"P_DV": 9374.0, "P1": 17395.7}
+    BULK = {"value_cm3": 25.7407}
+    Vr, D, V_D = 22.2263, -0.007, 3.0
+
+    def _measure(self, calibration):
+        data = {"calibration": calibration,
+                "samples": [{"sample_id": "X",
+                             "core_holder": dict(self.READINGS),
+                             "bulk_volume": dict(self.BULK)}]}
+        return run_measurement(data, GOLDEN)
+
+    def test_inline_harmonic_matches_the_harmonic_formula(self):
+        from porosimeter.physics import expansion_ratio
+
+        result = self._measure({"R": self.R, "model": "harmonic",
+                                "Vr_cm3": self.Vr, "D": self.D})
+        self.assertEqual(result["calibration"]["model"], "harmonic")
+        self.assertIn("D", result["calibration"])
+        self.assertNotIn("V_LIN_cm3", result["calibration"])
+
+        def V(P):
+            x = expansion_ratio(self.R, P)
+            return self.Vr * x / (1.0 + self.D * x)
+
+        expected = V(self.READINGS["P_DV"]) - V(self.READINGS["P1"])
+        self.assertAlmostEqual(
+            result["samples"][0]["core_holder"]["V_g_cm3"], expected,
+            places=4)
+
+    def test_models_give_different_results_on_the_same_constants(self):
+        """The model drives the reduction, it is not just a label."""
+        harmonic = self._measure({"R": self.R, "model": "harmonic",
+                                  "Vr_cm3": self.Vr, "D": self.D})
+        linear = self._measure({"R": self.R, "model": "linear",
+                                "Vr_cm3": self.Vr})
+        quadratic = self._measure({"R": self.R, "Vr_cm3": self.Vr,
+                                   "V_LIN_cm3": -self.Vr * self.D})
+        got = [r["samples"][0]["results"]["porosity_pct"]
+               for r in (harmonic, linear, quadratic)]
+        self.assertNotAlmostEqual(got[0], got[1], places=2)
+        # To second order the harmonic and quadratic models agree.
+        self.assertAlmostEqual(got[0], got[2], places=1)
+        self.assertNotEqual(got[0], got[2])
+
+    def test_model_survives_the_calibration_file_round_trip(self):
+        import tempfile
+
+        from porosimeter.cli import save_json
+
+        cal_in = {
+            "reference_pressure": {"R": self.R},
+            "model": "harmonic",
+            "cells": [{"cell": "C", "configurations": [
+                {"P": self.R / (1.0 + (V + self.V_D)
+                                / (self.Vr - (V + self.V_D) * self.D)),
+                 "V": V} for V in (0.0, 3.4, 6.8, 9.5)]}],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "calibration_result.json")
+            save_json(path, run_calibration(cal_in))
+            data = {"calibration": {"file": path, "cell": "C"},
+                    "samples": [{"sample_id": "X",
+                                 "core_holder": dict(self.READINGS),
+                                 "bulk_volume": dict(self.BULK)}]}
+            from_file = run_measurement(data, tmp)
+        inline = self._measure({"R": self.R, "model": "harmonic",
+                                "Vr_cm3": self.Vr, "D": self.D})
+        self.assertEqual(from_file["calibration"]["model"], "harmonic")
+        self.assertAlmostEqual(
+            from_file["samples"][0]["results"]["porosity_pct"],
+            inline["samples"][0]["results"]["porosity_pct"], places=3)
+
+    def test_missing_model_parameter_rejected(self):
+        """A harmonic calibration without D cannot be applied."""
+        with self.assertRaises(InputError):
+            self._measure({"R": self.R, "model": "harmonic",
+                           "Vr_cm3": self.Vr})
+
+
 class TemplateTest(unittest.TestCase):
     """`init` must emit templates that run end to end without editing."""
 
