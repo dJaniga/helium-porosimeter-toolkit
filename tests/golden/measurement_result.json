@@ -26,6 +26,8 @@
       "results": {
         "V_p_cm3": 3.8617,
         "u_V_p_cm3": 0.2492,
+        "diameter_cm": 2.54,
+        "length_cm": 5.08,
         "V_T_cm3": 25.7407,
         "u_V_T_cm3": 0.2089,
         "V_T_method": "cylinder geometry",

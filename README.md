@@ -397,6 +397,7 @@ python -m porosimeter measure examples/measurement_input.json
 | key | meaning |
 | --- | --- |
 | `V_p_cm3` | pore volume, cm³ — helium-accessible (connected) pore space |
+| `diameter_cm`, `length_cm` | plug dimensions as measured, cm — echoed whenever the input carries them, including next to a `value_cm3` bulk volume |
 | `V_T_cm3` | bulk volume, cm³ (`V_T_method` says which route produced it) |
 | `porosity_pct` | φ = Vp / V_T · 100 % |
 | `bulk_density_g_cm3` | dry mass / V_T |

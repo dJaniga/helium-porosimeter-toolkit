@@ -48,6 +48,9 @@ def print_summary(result):
                 return "%s = %s %s" % (label, val, unit)
 
             parts = []
+            if "diameter_cm" in r and "length_cm" in r:
+                parts.append("d x L = %.2f x %.2f cm"
+                             % (r["diameter_cm"], r["length_cm"]))
             for key, label in (("V_p_cm3", "Vp"), ("V_T_cm3", "VT")):
                 if key in r:
                     parts.append(fmt(key, label, "cm3", 3))
